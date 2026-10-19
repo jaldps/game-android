@@ -12,6 +12,13 @@ export const U = {
   uHoles: { value: Array.from({ length: MAX_HOLES }, () => new THREE.Vector4(0, 0, 0, 0)) },
   uHoleN: { value: 0 },
   uBlocks: { value: null },
+  // excavation mask over the whole platform (R8). Painted as things are swallowed.
+  uDamage: { value: null },
+  // screen-space window cut through buildings that stand between the camera and the player's hole
+  uCut: { value: new THREE.Vector4(0, 0, 1, 0) },
+  // theme grass ramp
+  uGrassA: { value: new THREE.Vector3(0.31, 0.58, 0.17) },
+  uGrassB: { value: new THREE.Vector3(0.50, 0.74, 0.26) },
 };
 
 const f = n => (Math.round(n * 10000) / 10000).toFixed(4);
@@ -44,6 +51,23 @@ void holeDiscard(){
 }
 `;
 
+// Nothing that has sunk below street level may be seen outside a hole's mouth.
+// This is what makes the pit read as a real opening instead of a decal.
+const BELOW_CLIP = /* glsl */`
+uniform vec4 uHoles[${MAX_HOLES}];
+uniform int uHoleN;
+void belowClip(){
+  if (vHW.y > -0.002) return;
+  for (int i = 0; i < ${MAX_HOLES}; i++) {
+    if (i >= uHoleN) break;
+    vec2 d = vHW.xz - uHoles[i].xy;
+    float rr = uHoles[i].z * 1.085;
+    if (dot(d,d) < rr*rr) return;
+  }
+  discard;
+}
+`;
+
 // ---------- GROUND ----------
 const GROUND_FN = /* glsl */`
 uniform sampler2D uBlocks;
@@ -66,9 +90,10 @@ vec3 pavers(vec2 p, float sz, vec3 c0, vec3 c1, float grout){
   c *= 0.97 + 0.06*vnoise(p*3.0);
   return c;
 }
+uniform vec3 uGrassA; uniform vec3 uGrassB;
 vec3 grassCol(vec2 p){
   float n = fbm(p*0.35);
-  vec3 c = mix(vec3(0.31,0.58,0.17), vec3(0.50,0.74,0.26), n);
+  vec3 c = mix(uGrassA, uGrassB, n);
   float stripe = step(0.5, fract((p.x+p.y*0.0)/3.0));
   c *= 0.95 + 0.08*stripe;
   c *= 0.92 + 0.12*vnoise(p*4.5);
@@ -129,25 +154,59 @@ vec3 roadCol(vec2 p, vec2 l, bool rx, bool rz, out float rough){
   rough = mix(0.92, 0.6, clamp(m,0.,1.));
   return c;
 }
+// Outer district: a wide esplanade ring that wraps the grid — boardwalk, promenade pavers,
+// a landscaped green belt with a jogging loop, then a tiled civic plaza where the ring towers stand.
 vec3 promenade(vec2 p, out float rough){
   rough = 0.85;
   float e = HALFP - max(abs(p.x), abs(p.y));   // distance to platform edge
-  vec3 c = pavers(p, 1.4, vec3(0.86,0.80,0.70), vec3(0.93,0.88,0.78), 0.06);
-  // wooden boardwalk strip
-  if (e < 4.5 && e > 1.0) {
-    float along = abs(p.x) > abs(p.y) ? p.y : p.x;
-    float across = abs(p.x) > abs(p.y) ? p.x : p.y;
+  float along = abs(p.x) > abs(p.y) ? p.y : p.x;
+  float across = abs(p.x) > abs(p.y) ? p.x : p.y;
+  vec3 c;
+  if (e < 0.9) {
+    c = vec3(0.90,0.88,0.84)*(0.95+0.07*vnoise(p*2.0));
+    c *= 0.9 + 0.12*smoothstep(0.0, 0.05, abs(fract(along/2.4)-0.5));
+    rough = 0.6;
+  } else if (e < 5.0) {                                   // timber boardwalk
     float plank = fract(along / 0.55);
     float id = floor(along/0.55);
     vec3 w = mix(vec3(0.62,0.42,0.26), vec3(0.74,0.52,0.32), hash12(vec2(id, floor(across/3.0))));
     w *= 0.86 + 0.14*smoothstep(0.0, 0.08, min(plank, 1.0-plank));
     w *= 0.93 + 0.1*vnoise(vec2(along*0.6, across*8.0));
     c = w; rough = 0.75;
+  } else if (e < 10.5) {                                  // promenade pavers with a banded inlay
+    c = pavers(p, 1.4, vec3(0.86,0.80,0.70), vec3(0.93,0.88,0.78), 0.06);
+    float inlay = band(e, 7.2, 8.0);
+    c = mix(c, vec3(0.72,0.47,0.36)*(0.92+0.1*vnoise(p*3.0)), inlay);
+    float seat = band(fract(along/7.0), 0.0, 0.1) * band(e, 5.6, 6.6);
+    c = mix(c, vec3(0.78,0.74,0.68), seat*0.7);
+    rough = 0.8;
+  } else if (e < 17.2) {                                  // green belt + jogging loop
+    c = grassCol(p*0.9 + 41.0);
+    float trk = band(e, 13.0, 14.4);
+    vec3 track = vec3(0.74,0.42,0.33)*(0.92+0.1*vnoise(p*5.0));
+    c *= 1.0 - 0.2*(band(e, 12.6, 13.0) + band(e, 14.4, 14.8));
+    c = mix(c, track, trk);
+    float hedge = band(e, 10.5, 11.1);
+    c = mix(c, uGrassA*0.78, hedge*0.85);
+    rough = 1.0;
+  } else {                                                // civic plaza: large stone tiles + tree pits
+    vec2 t = p / 3.2; vec2 id = floor(t); vec2 fr = fract(t);
+    float h = hash12(id);
+    c = mix(vec3(0.80,0.78,0.74), vec3(0.90,0.88,0.84), h);
+    c *= 0.9 + 0.1*vnoise(p*1.4);
+    float g = smoothstep(0.0, 0.035, min(min(fr.x,1.-fr.x), min(fr.y,1.-fr.y)));
+    c *= 0.86 + 0.14*g;
+    // tree pits every other tile
+    float pit = 1.0 - smoothstep(0.78, 0.86, length(fr-0.5)*2.0);
+    pit *= step(0.5, mod(id.x+id.y, 2.0)) * step(0.55, h);
+    c = mix(c, vec3(0.40,0.31,0.22)*(0.9+0.15*vnoise(p*7.0)), pit*0.9);
+    // kerb where the plaza meets the green belt
+    c *= 1.0 - 0.18*band(e, 17.2, 17.6);
+    rough = 0.7;
   }
-  if (e < 1.0) { c = vec3(0.90,0.88,0.84)*(0.95+0.07*vnoise(p*2.0)); }
   return c;
 }
-vec3 groundColor(vec2 p, float up, float wy, out float rough){
+vec3 groundColorBase(vec2 p, float up, float wy, out float rough){
   rough = 0.9;
   // platform side walls (sea wall)
   if (up < 0.5 && wy < -0.05 && max(abs(p.x),abs(p.y)) > HALFP - 0.2) {
@@ -262,6 +321,36 @@ vec3 groundColor(vec2 p, float up, float wy, out float rough){
     c = mix(c, vec3(0.92,0.92,0.88), m);
     return c;
   }
+}
+// ---- excavation: ground that has been eaten away turns into a dig site
+uniform sampler2D uDamage;
+vec3 groundColor(vec2 p, float up, float wy, out float rough){
+  vec3 c = groundColorBase(p, up, wy, rough);
+  if (up < 0.5) return c;
+  float dmg = texture2D(uDamage, (p + HALFP) / (2.0*HALFP)).r;
+  if (dmg < 0.012) return c;
+  float n = fbm(p*0.55 + 3.3);
+  float n2 = vnoise(p*2.6);
+  float d = clamp(dmg*1.35 - 0.30 + n*0.42 - 0.2, 0.0, 1.0);
+  if (d <= 0.001) return c;
+  // torn kerb line where the paving gives way
+  float lip = band(d, 0.02, 0.17);
+  c = mix(c, c*0.52, lip*0.85);
+  // churned earth with grit and gravel
+  vec3 dirt = mix(vec3(0.40,0.30,0.21), vec3(0.58,0.46,0.33), n2);
+  dirt *= 0.88 + 0.22*vnoise(p*7.0);
+  float grit = step(0.90, hash12(floor(p*2.6)));
+  dirt = mix(dirt, vec3(0.63,0.60,0.56)*(0.8+0.4*hash12(floor(p*2.6)+9.)), grit*0.75);
+  float tread = band(fract((p.x*0.7 + p.y*0.7)), 0.0, 0.18) * 0.5 + band(fract((p.x-p.y)*0.55), 0.0, 0.14)*0.4;
+  dirt *= 1.0 - 0.14*tread;
+  float k = smoothstep(0.08, 0.46, d);
+  c = mix(c, dirt, k);
+  // settled centre sinks into shadow
+  c *= 1.0 - 0.42*smoothstep(0.42, 1.0, d);
+  // damp patches
+  c = mix(c, vec3(0.26,0.26,0.28), smoothstep(0.80, 1.0, d) * 0.35 * smoothstep(0.45,0.7,n2));
+  rough = mix(rough, 1.0, k);
+  return c;
 }
 `;
 
@@ -401,7 +490,7 @@ function patch(mat, o) {
   const key = JSON.stringify(o);
   mat.customProgramCacheKey = () => key;
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uTime: U.uTime, uHoles: U.uHoles, uHoleN: U.uHoleN, uBlocks: U.uBlocks });
+    Object.assign(sh.uniforms, { uTime: U.uTime, uHoles: U.uHoles, uHoleN: U.uHoleN, uBlocks: U.uBlocks, uDamage: U.uDamage, uCut: U.uCut, uGrassA: U.uGrassA, uGrassB: U.uGrassB });
     let vs = sh.vertexShader, fs = sh.fragmentShader;
     // ---- vertex
     let vdecl = GLSL_COMMON.replace(/float hash12[\s\S]*$/, '') + `
@@ -493,11 +582,27 @@ if (paint > 1.5) vColor.rgb = color.rgb * tint2;
 `);
     }
     // ---- fragment
-    let fdecl = GLSL_COMMON + (o.discard ? HOLE_DISCARD : '') + `varying float vUp; varying vec3 vOP; varying float vFade;\nfloat bayer4(vec2 p){ vec2 q = mod(floor(p), 4.0); float i = q.x + q.y*4.0; return fract(sin(i*12.9898)*0.0 + (mod(i*5.0, 16.0)+0.5)/16.0); }\n`;
+    const DITHER = `
+float bayer2(vec2 a){ a = floor(a); return fract(a.x*0.5 + a.y*a.y*0.75); }
+float bayer4(vec2 a){ return bayer2(0.5*a)*0.25 + bayer2(a); }
+float bayer8(vec2 a){ return bayer4(0.5*a)*0.25 + bayer2(a); }
+uniform vec4 uCut;   // xy = hole centre in device pixels, z = window radius, w = enabled
+`;
+    let fdecl = GLSL_COMMON + (o.discard ? HOLE_DISCARD : '') + (o.belowClip && !o.discard ? BELOW_CLIP : '')
+      + `varying float vUp; varying vec3 vOP; varying float vFade;\n` + DITHER;
     if (o.kind === 'ground') fdecl += GROUND_FN;
     if (o.kind === 'facade') fdecl += FACADE_FN;
     fs = fs.replace('#include <common>', '#include <common>\n' + fdecl);
-    fs = fs.replace('void main() {', 'void main() {\nif (vFade > 0.01 && bayer4(gl_FragCoord.xy) < vFade) discard;\n' + (o.discard ? 'holeDiscard();\n' : '') + 'float gRough = 0.8; float gMetal = 0.0; vec3 gEmis = vec3(0.0);\n');
+    // Occluders are not screen-doored away wholesale any more: a soft circular window is punched
+    // through them around the player's hole, so the rest of the building stays solid and readable.
+    const CUT = `
+if (vFade > 0.01 && uCut.w > 0.5) {
+  float cd = length(gl_FragCoord.xy - uCut.xy);
+  float a = vFade * smoothstep(uCut.z, uCut.z*0.60, cd);
+  if (a > 0.02 && bayer8(gl_FragCoord.xy) < a) discard;
+}
+`;
+    fs = fs.replace('void main() {', 'void main() {\n' + CUT + (o.discard ? 'holeDiscard();\n' : (o.belowClip ? 'belowClip();\n' : '')) + 'float gRough = 0.8; float gMetal = 0.0; vec3 gEmis = vec3(0.0);\n');
     if (o.kind === 'ground') {
       fs = fs.replace('#include <map_fragment>', 'diffuseColor.rgb = pow(groundColor(vHW.xz, vUp, vHW.y, gRough), vec3(2.2));\n');
       fs = fs.replace('#include <color_fragment>', '');
@@ -526,12 +631,43 @@ export function groundMaterial() {
 }
 export function facadeMaterial() {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0, vertexColors: false, envMapIntensity: 0.55 });
-  return patch(m, { kind: 'facade', darkK: 0.22 });
+  return patch(m, { kind: 'facade', darkK: 0.22, belowClip: true });
 }
 export function paintMaterial(o = {}) {
   const m = new THREE.MeshStandardMaterial({ roughness: o.rough ?? 0.7, metalness: o.metal ?? 0, vertexColors: true, envMapIntensity: o.env ?? 0.7, flatShading: false });
-  return patch(m, { kind: 'paint', anim: o.anim || null, aoH: o.aoH ?? 0.9, aoMin: o.aoMin ?? 0.62, shingles: !!o.shingles, darkK: o.darkK ?? 0.3, discard: !!o.discard });
+  return patch(m, { kind: 'paint', anim: o.anim || null, aoH: o.aoH ?? 0.9, aoMin: o.aoMin ?? 0.62, shingles: !!o.shingles, darkK: o.darkK ?? 0.3, discard: !!o.discard, belowClip: true });
 }
+
+// 96x96 excavation mask over the platform; painted wherever something has been swallowed.
+export const DMG = { size: 96, data: null, tex: null, dirty: false, half: 0 };
+export function initDamage(half) {
+  const n = DMG.size;
+  DMG.half = half;
+  DMG.data = new Uint8Array(n * n);
+  const t = new THREE.DataTexture(DMG.data, n, n, THREE.RedFormat, THREE.UnsignedByteType);
+  t.minFilter = t.magFilter = THREE.LinearFilter;
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.needsUpdate = true;
+  if (DMG.tex) DMG.tex.dispose();
+  DMG.tex = t; U.uDamage.value = t; DMG.dirty = false;
+}
+export function clearDamage() { if (DMG.data) { DMG.data.fill(0); DMG.dirty = true; } }
+// Splat a soft disc of excavation at a world position.
+export function paintDamage(x, z, r, amount = 1) {
+  if (!DMG.data) return;
+  const n = DMG.size, half = DMG.half, scale = n / (half * 2);
+  const cx = (x + half) * scale, cz = (z + half) * scale, rr = Math.max(0.8, r * scale);
+  const i0 = Math.max(0, Math.floor(cx - rr)), i1 = Math.min(n - 1, Math.ceil(cx + rr));
+  const j0 = Math.max(0, Math.floor(cz - rr)), j1 = Math.min(n - 1, Math.ceil(cz + rr));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const d = Math.hypot(i + 0.5 - cx, j + 0.5 - cz) / rr;
+    if (d > 1) continue;
+    const v = (1 - d * d) * 255 * amount;
+    const k = j * n + i;
+    if (v > DMG.data[k]) { DMG.data[k] = Math.min(255, v | 0); DMG.dirty = true; }
+  }
+}
+export function flushDamage() { if (DMG.dirty && DMG.tex) { DMG.tex.needsUpdate = true; DMG.dirty = false; } }
 
 // Soft contact shadow / AO decal texture (rounded rect with gaussian falloff)
 export function decalTexture() {

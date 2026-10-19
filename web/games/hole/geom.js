@@ -228,13 +228,71 @@ export function prop(kind) {
       for (const a of [0, 2.1, 4.2]) { b.box(0.38, 0.06, 0.38, { p: [Math.cos(a) * 0.75, 0.45, Math.sin(a) * 0.75], c: '#c74f3a' }); b.box(0.06, 0.45, 0.06, { p: [Math.cos(a) * 0.75, 0, Math.sin(a) * 0.75], c: METAL }); }
       break;
     case 'kiosk': {
-      b.rbox(3.0, 2.5, 2.6, 0.08, { paint: 1, grad: [0.8, 1.0] });
-      b.box(2.6, 1.0, 0.06, { p: [0, 1.2, 1.31], c: '#2c3442' });
-      b.box(2.8, 0.18, 0.5, { p: [0, 1.0, 1.5], c: '#f2eee6' });
-      // striped awning
-      for (let i = 0; i < 8; i++) b.box(3.2 / 8, 0.08, 1.2, { p: [-1.6 + 3.2 / 16 + i * 3.2 / 8, 2.35, 1.6], r: [0.35, 0, 0], c: i % 2 ? '#ffffff' : '#e8473a' });
-      b.box(3.2, 0.25, 2.8, { p: [0, 2.5, 0], c: '#f7f2e6' });
-      b.box(1.6, 0.6, 0.12, { p: [0, 2.75, 1.0], c: '#ffd24a' });
+      // painted market stall: panelled body, glazed counter, produce crates, chalkboard, striped canopy
+      b.rbox(3.0, 2.2, 2.6, 0.08, { paint: 1, grad: [0.74, 1.0] });
+      b.box(3.06, 0.22, 2.66, { p: [0, 0, 0], c: '#8a7a68' });                 // plinth
+      b.box(3.06, 0.1, 2.66, { p: [0, 2.2, 0], c: '#fffaf0' });                // cornice
+      for (const x of [-1.05, 0, 1.05]) b.box(0.1, 1.5, 2.64, { p: [x, 0.5, 0], c: '#ffffff' }); // pilasters
+      b.box(2.6, 1.15, 0.06, { p: [0, 0.95, 1.31], c: '#243040' });            // glazed front
+      b.box(2.64, 0.07, 0.07, { p: [0, 1.52, 1.33], c: '#fffaf0' });
+      b.box(0.07, 1.15, 0.07, { p: [0, 0.95, 1.33], c: '#fffaf0' });
+      b.box(2.9, 0.16, 0.56, { p: [0, 1.58, 1.46], c: '#efe6d4' });            // counter shelf
+      // produce crates on the counter
+      for (let i = 0; i < 3; i++) {
+        const cx = -0.86 + i * 0.86;
+        b.box(0.62, 0.22, 0.44, { p: [cx, 1.74, 1.5], c: ['#c08a52', '#b07c46', '#cb9560'][i] });
+        for (let k = 0; k < 4; k++) b.ico(0.1, 0, { p: [cx - 0.18 + (k % 2) * 0.34, 1.99, 1.42 + (k < 2 ? -0.1 : 0.1)], c: ['#ff5d4a', '#ffd23f', '#6fc44a', '#ff8c42'][(i + k) % 4] });
+      }
+      // chalkboard menu + side hatch
+      b.box(0.06, 0.8, 0.62, { p: [1.52, 0.85, -0.2], c: '#2b3b34' });
+      b.box(0.02, 0.1, 0.44, { p: [1.56, 1.42, -0.2], c: '#e8e2d2' });
+      b.box(0.02, 0.07, 0.3, { p: [1.56, 1.24, -0.2], c: '#d7cfbc' });
+      // striped canopy with scalloped valance
+      for (let i = 0; i < 8; i++) {
+        b.box(3.24 / 8, 0.08, 1.45, { p: [-1.62 + 3.24 / 16 + i * 3.24 / 8, 2.42, 1.74], r: [0.33, 0, 0], c: i % 2 ? '#fdf6ec' : '#e8473a' });
+        b.box(3.24 / 8 - 0.03, 0.26, 0.06, { p: [-1.62 + 3.24 / 16 + i * 3.24 / 8, 2.08, 2.42], c: i % 2 ? '#fdf6ec' : '#e8473a' });
+      }
+      b.box(3.3, 0.28, 2.84, { p: [0, 2.3, 0], c: '#f7f2e6' });
+      b.box(1.7, 0.56, 0.14, { p: [0, 2.58, 0.9], c: '#ffd24a' });             // sign board
+      b.box(1.34, 0.16, 0.05, { p: [0, 2.78, 0.98], c: '#b8771c' });
+      b.cyl(0.05, 0.05, 0.5, 6, { p: [0, 2.58, -1.3], c: '#9aa3ad' });
+      b.sphere(0.16, 7, 5, { p: [0, 3.2, -1.3], c: '#ff8c42' });
+      break; }
+    case 'rubble': {                                                            // broken masonry heap left by a swallowed building
+      b.ico(1.0, 0, { p: [0, 0.32, 0], s: [1.5, 0.52, 1.4], c: '#a89b8a', jitter: 0.3 });
+      const rc = ['#b5a897', '#9c8f7f', '#c2b4a0', '#8e8275'];
+      for (let i = 0; i < 9; i++) {
+        const a = i * 2.2, rr = 0.35 + (i % 3) * 0.42;
+        b.box(0.3 + (i % 3) * 0.14, 0.2 + (i % 2) * 0.16, 0.26 + (i % 4) * 0.1, { p: [Math.cos(a) * rr, 0.08 + (i % 3) * 0.22, Math.sin(a) * rr], r: [(i % 5) * 0.2, a, (i % 3) * 0.26], c: rc[i % 4] });
+      }
+      for (let i = 0; i < 3; i++) b.cyl(0.035, 0.035, 0.9, 4, { p: [-0.3 + i * 0.35, 0.3, 0.1], r: [0.5 + i * 0.4, i, 0.3], c: '#8a5a3c' }); // bent rebar
+      break; }
+    case 'dirtpile':
+      b.cone(1.25, 0.9, 9, { c: '#7d5e3e', grad: [0.72, 1.05], jitter: 0.12 });
+      b.ico(0.4, 0, { p: [0.9, 0.2, 0.4], s: [1.3, 0.6, 1.1], c: '#8a6a46', jitter: 0.12 });
+      b.box(0.1, 0.9, 0.1, { p: [-0.8, 0, 0.5], r: [0, 0, 0.3], c: '#8a5a3c' });
+      b.box(0.3, 0.26, 0.06, { p: [-0.93, 0.9, 0.5], r: [0, 0, 0.3], c: '#b9bec6' });
+      break;
+    case 'cfence':                                                              // orange construction barrier
+      for (const x of [-1.5, 1.5]) { b.box(0.7, 0.1, 0.5, { p: [x, 0, 0], c: '#d8d2c6' }); b.box(0.09, 1.05, 0.09, { p: [x, 0.1, 0], c: '#e86a1f' }); }
+      for (let i = 0; i < 6; i++) b.box(0.52, 0.9, 0.05, { p: [-1.45 + i * 0.58, 0.14, 0], c: i % 2 ? '#ff7a2a' : '#f4f1ea' });
+      b.box(3.2, 0.1, 0.07, { p: [0, 1.05, 0], c: '#e86a1f' });
+      break;
+    case 'digger': {                                                            // mini excavator parked in the dig
+      b.box(2.3, 0.42, 1.5, { p: [0, 0.18, 0], c: '#3b3f46' });
+      for (const x of [-0.78, 0.78]) b.box(0.34, 0.74, 2.3, { p: [x, 0, 0], c: '#2a2d33' });
+      b.rbox(1.5, 1.2, 1.5, 0.12, { p: [-0.2, 0.6, 0], paint: 1, grad: [0.82, 1.02] });
+      b.box(1.1, 0.72, 0.06, { p: [-0.2, 1.1, 0.77], c: '#2b3b4e' });
+      b.cyl(0.14, 0.14, 2.1, 6, { p: [0.9, 1.0, 0], r: [0, 0, -0.75], c: '#f2b01e' });
+      b.cyl(0.11, 0.11, 1.5, 6, { p: [2.0, 1.25, 0], r: [0, 0, 0.9], c: '#f2b01e' });
+      b.add(new THREE.CylinderGeometry(0.42, 0.52, 0.7, 6, 1, true), { p: [2.5, 0.42, 0], r: [0, 0, 1.9], c: '#5b6069' });
+      break; }
+    case 'sign': {                                                              // site hoarding with a works notice
+      for (const x of [-1.0, 1.0]) b.box(0.1, 1.5, 0.1, { p: [x, 0, 0], c: '#9aa3ad' });
+      b.box(2.4, 1.4, 0.1, { p: [0, 1.0, 0], c: '#f2c230' });
+      b.box(2.0, 0.22, 0.04, { p: [0, 2.0, 0.07], c: '#1d2a44' });
+      b.box(1.4, 0.16, 0.04, { p: [-0.25, 1.68, 0.07], c: '#1d2a44' });
+      b.box(0.9, 0.16, 0.04, { p: [-0.5, 1.4, 0.07], c: '#1d2a44' });
       break; }
     case 'cart':
       b.box(1.6, 0.9, 0.9, { p: [0, 0.35, 0], paint: 1 });
@@ -369,4 +427,80 @@ export function facadeCyl() {
   g.setAttribute('facade', new THREE.BufferAttribute(fa, 4)); g.deleteAttribute('uv');
   g.computeBoundingSphere();
   return g;
+}
+
+// ---------------- set-pieces (only a near-max hole can swallow these) ----------------
+export function mega(kind) {
+  const b = new GB();
+  if (kind === 'spire') {
+    const H = 112, seg = 11;
+    for (let i = 0; i < seg; i++) {
+      const t0 = i / seg, t1 = (i + 1) / seg;
+      const r0 = 8.6 * (1 - t0 * 0.78), r1 = 8.6 * (1 - t1 * 0.78);
+      b.add(new THREE.CylinderGeometry(r1, r0, H / seg, 10, 1), { p: [0, H * (t0 + t1) / 2, 0], c: i % 2 ? '#6fa6e8' : '#8cc0f2', flat: false });
+      b.add(new THREE.CylinderGeometry(r1 * 1.07, r1 * 1.07, 0.9, 10, 1), { p: [0, H * t1, 0], c: '#2f4f86' });
+    }
+    // corner fins
+    for (let k = 0; k < 5; k++) {
+      const a = k / 5 * Math.PI * 2;
+      b.box(0.8, H * 0.94, 0.8, { p: [Math.cos(a) * 7.4, 0, Math.sin(a) * 7.4], r: [0, -a, 0], c: '#c8dcf4' });
+    }
+    b.cyl(1.9, 5.2, 9, 10, { p: [0, H, 0], c: '#9fd0ff', flat: false });
+    b.cyl(0.35, 0.35, 12, 6, { p: [0, H + 9, 0], c: '#d8e4f0' });
+    b.sphere(0.9, 8, 6, { p: [0, H + 21.4, 0], c: '#ff3b30' });
+    for (let k = 0; k < 3; k++) b.add(new THREE.TorusGeometry(2.6 + k, 0.22, 4, 18), { p: [0, H + 2 + k * 2.6, 0], r: [Math.PI / 2, 0, 0], c: '#ffd23f' });
+    return b.build();
+  }
+  if (kind === 'stadium') {
+    const RO = 15.8, RI = 10.4, H = 15;
+    // bowl: outer wall ring of panels, inner raked seating
+    for (let i = 0; i < 28; i++) {
+      const a = i / 28 * Math.PI * 2, nx = Math.cos(a), nz = Math.sin(a);
+      b.box(3.6, H, 1.5, { p: [nx * RO, 0, nz * RO], r: [0, -a + Math.PI / 2, 0], c: i % 2 ? '#e8e2d4' : '#d6cfc0' });
+      b.box(3.4, 1.1, 0.7, { p: [nx * (RO + 0.5), H, nz * (RO + 0.5)], r: [0, -a + Math.PI / 2, 0], c: '#b9b2a2' });
+      if (i % 4 === 0) b.box(1.4, H * 0.8, 0.3, { p: [nx * (RO + 0.85), 0, nz * (RO + 0.85)], r: [0, -a + Math.PI / 2, 0], c: '#9aa3ad' });
+      // raked seating tiers
+      for (let t = 0; t < 4; t++) {
+        const rr = RI + t * 1.35, hh = 2.2 + t * 3.1;
+        b.box(2.6, 1.0, 1.4, { p: [nx * rr, hh, nz * rr], r: [0, -a + Math.PI / 2, 0], c: ['#3f74c8', '#e0453f', '#3f74c8', '#f0c23a'][t], base: false });
+      }
+    }
+    // pitch + markings
+    b.cyl(RI - 0.4, RI - 0.4, 0.5, 30, { p: [0, 0, 0], c: '#4f9c3a' });
+    b.add(new THREE.TorusGeometry(2.6, 0.18, 4, 24), { p: [0, 0.54, 0], r: [Math.PI / 2, 0, 0], c: '#f0f4ee' });
+    b.box(16.4, 0.06, 0.3, { p: [0, 0.54, 0], c: '#f0f4ee' });
+    for (const z of [-7.4, 7.4]) b.box(6.4, 0.06, 0.3, { p: [0, 0.54, z], c: '#f0f4ee' });
+    // floodlight masts
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + k * Math.PI / 2;
+      b.cyl(0.3, 0.42, H + 7, 6, { p: [Math.cos(a) * (RO - 0.6), 0, Math.sin(a) * (RO - 0.6)], c: '#9aa3ad' });
+      b.box(4.2, 1.5, 0.6, { p: [Math.cos(a) * (RO - 0.6), H + 7, Math.sin(a) * (RO - 0.6)], r: [0, -a, -0.3], c: '#dfe6ee' });
+    }
+    return b.build();
+  }
+  // ferris wheel
+  const R = 12.4, HUB = 14.5;
+  for (const sx of [-1, 1]) {
+    b.box(1.1, HUB * 1.08, 1.1, { p: [sx * 5.0, 0, -3.4], r: [0.24, 0, -sx * 0.3], c: '#d8dde4' });
+    b.box(1.1, HUB * 1.08, 1.1, { p: [sx * 5.0, 0, 3.4], r: [-0.24, 0, -sx * 0.3], c: '#d8dde4' });
+  }
+  b.box(13.5, 0.9, 9.6, { p: [0, 0, 0], c: '#b9bec6' });
+  b.add(new THREE.CylinderGeometry(1.1, 1.1, 4.2, 10), { p: [0, HUB, 0], r: [Math.PI / 2, 0, 0], c: '#f2c230' });
+  for (const z of [-1.5, 1.5]) {
+    b.add(new THREE.TorusGeometry(R, 0.34, 4, 36), { p: [0, HUB, z], c: '#f4f7fb' });
+    b.add(new THREE.TorusGeometry(R * 0.55, 0.22, 4, 28), { p: [0, HUB, z], c: '#e4e9f0' });
+  }
+  const cab = ['#ff5a5f', '#ffd23f', '#3fa7ff', '#43d17a', '#ff8c42', '#b06bff'];
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2, cx = Math.cos(a) * R, cy = HUB + Math.sin(a) * R;
+    b.box(0.12, R - 0.4, 0.12, { p: [cx * 0.5, HUB + (cy - HUB) * 0.5, -1.5], r: [0, 0, -a], c: '#dfe6ee', base: false });
+    b.box(0.12, R - 0.4, 0.12, { p: [cx * 0.5, HUB + (cy - HUB) * 0.5, 1.5], r: [0, 0, -a], c: '#dfe6ee', base: false });
+    b.rbox(1.9, 1.7, 2.3, 0.3, { p: [cx, cy - 1.75, 0], c: cab[i % 6] });
+    b.box(2.0, 0.12, 2.4, { p: [cx, cy - 0.12, 0], c: '#e8edf4', base: false });
+  }
+  // base platform + queue rail
+  b.cyl(7.5, 8.2, 0.7, 14, { p: [0, 0, 0], c: '#e0d6c4' });
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; b.cyl(0.07, 0.07, 1.0, 5, { p: [Math.cos(a) * 7.6, 0.7, Math.sin(a) * 7.6], c: '#9aa3ad' }); }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + 0.3; b.sphere(0.2, 7, 5, { p: [Math.cos(a) * 8.0, 2.6, Math.sin(a) * 8.0], c: i % 2 ? '#ffd23f' : '#ff5a5f' }); }
+  return b.build();
 }

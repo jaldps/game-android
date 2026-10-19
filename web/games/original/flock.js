@@ -1,7 +1,7 @@
 // The murmuration: formation-spring boids with curl-noise swirl, separation, obstacle squeeze,
 // two-group split, a ribboned lead bird, and hawks that hunt stragglers.
 import { noise2, clamp, lerp, hash1 } from './util.js';
-import { sdf, HIT, boltAt, WATER_Y, isWaterAt } from './level.js';
+import { sdf, HIT, boltAt, WATER_Y, isWaterAt, LV } from './level.js';
 
 export const F = {
   birds: [], anchors: [mkAnchor(), mkAnchor()], targets: [{ x: 70, y: 45 }, { x: 70, y: 45 }],
@@ -14,7 +14,7 @@ const RIB = 34;
 function newBird(x, y, rng) {
   const a = rng() * 6.283, r = Math.sqrt(rng());
   return { x, y, vx: 0, vy: 0, ox: Math.cos(a) * r, oy: Math.sin(a) * r, g: 0, alive: true, die: 0, ph: rng() * 6.28,
-    fs: 13 + rng() * 6, k: 2.6 + rng() * 2.2, sz: 0.85 + rng() * 0.3, nb: 0, isLead: false, rot: 0, spin: 0, glide: 0, sx: 0, sy: 0 };
+    fs: 13 + rng() * 6, k: 2.6 + rng() * 2.2, sz: 0.85 + rng() * 0.3, nb: 0, isLead: false, rot: 0, spin: 0, glide: 0, sx: 0, sy: 0, grace: 0 };
 }
 
 export function resetFlock(n, camX, rng) {
@@ -32,7 +32,7 @@ function setLead(b) {
   F.lead = b;
 }
 export function addBirds(n, x, y, rng, camSpeed) {
-  for (let i = 0; i < n; i++) { const b = newBird(x, y, rng); b.x = x + (rng() - 0.5) * 3; b.y = y - rng() * 2; b.vx = camSpeed * 0.6; b.vy = -12 - rng() * 10; b.k = 1.5; b.g = F.split ? nearestGroup(b) : 0; F.birds.push(b); }
+  for (let i = 0; i < n; i++) { const b = newBird(x, y, rng); b.x = x + (rng() - 0.5) * 3; b.y = y - rng() * 2; b.vx = camSpeed * 0.6; b.vy = -12 - rng() * 10; b.k = 1.5; b.grace = 1.1; b.g = F.split ? nearestGroup(b) : 0; F.birds.push(b); }
 }
 function nearestGroup(b) {
   const A = F.anchors; return (Math.hypot(b.y - A[0].y, 0) < Math.hypot(b.y - A[1].y, 0)) ? 0 : 1;
@@ -102,9 +102,20 @@ export function updateFlock(dt, t, camX, speed, W, cb) {
     let ax = (tx - b.x) * b.k * 3.2 - (b.vx - speed - a.vx) * 2.4 + b.sx;
     let ay = (ty - b.y) * b.k * 3.2 - (b.vy - a.vy) * 2.4 + b.sy;
     if (b.k < 2.6) b.k += dt * 0.8; // newly recruited birds ease in
-    // obstacle squeeze: sample slightly ahead
-    const d = sdf(b.x + b.vx * 0.1, b.y + b.vy * 0.1, 8);
-    if (d < 5.5) { const f = (5.5 - Math.max(d, 0)) * 16; ax += HIT.nx * f; ay += HIT.ny * f; }
+    // obstacle squeeze: sample slightly ahead. Strong + wide so the murmuration POURS around
+    // rock instead of smearing into it; the outer birds still graze on a tight thread.
+    const d = sdf(b.x + b.vx * 0.12, b.y + b.vy * 0.12, 10);
+    if (d < 7.5) { const u = (7.5 - Math.max(d, -1)) / 7.5, f = u * u * 150; ax += HIT.nx * f; ay += HIT.ny * f; }
+    // A charging lightning column shoves the flock DOWNSTREAM (always +x, never back through
+    // the column — the camera is dragging them right anyway, so a two-sided push would just
+    // feed the left half back into the strike). The flock surges ahead of the crackle.
+    for (const bo of LV.bolts) {
+      if (bo.st !== 1 && bo.st !== 2) continue;
+      const dx2 = b.x - bo.x; if (dx2 > 7 || dx2 < -26) continue;
+      const u = dx2 > 0 ? 1 - dx2 / 7 : 1 + dx2 / 26;
+      ax += u * u * 215 * (bo.st === 2 ? 1 : Math.min(1, bo.t / 1.1));
+    }
+    if (b.grace > 0) b.grace -= dt;
     b.vx += ax * dt; b.vy += ay * dt;
     const rvx = b.vx - speed, sp = Math.hypot(rvx, b.vy), mxs = 95;
     if (sp > mxs) { b.vx = speed + rvx / sp * mxs; b.vy = b.vy / sp * mxs; }
@@ -116,10 +127,10 @@ export function updateFlock(dt, t, camX, speed, W, cb) {
     b.ph += dt * b.fs * (1 + Math.max(0, climb) * 0.6) * (1 - b.glide * 0.85);
     cx += b.x; cy += b.y;
     // collisions
-    if (!F.invuln) {
+    if (!F.invuln && b.grace <= 0) {
       const dd = sdf(b.x, b.y, 2);
       const bolt = boltAt(b.x, b.y);
-      if (dd < -0.15 || bolt) kill(b, bolt ? 'bolt' : (HIT.o ? HIT.o.kind : (isWaterAt(b.x) ? 'water' : 'ground')), cb);
+      if (dd < -0.55 || bolt) kill(b, bolt ? 'bolt' : (HIT.o ? HIT.o.kind : (isWaterAt(b.x) ? 'water' : 'ground')), cb);
     } else {
       const dd = sdf(b.x, b.y, 2); if (dd < 0.3) { b.x += HIT.nx * (0.3 - dd); b.y += HIT.ny * (0.3 - dd); }
     }
@@ -132,8 +143,8 @@ export function updateFlock(dt, t, camX, speed, W, cb) {
   if (L) {
     const R = F.ribbon; R[0].x = L.x - 0.9; R[0].y = L.y + 0.1;
     for (let i = 1; i < R.length; i++) {
-      const p = R[i], q = R[i - 1]; p.y += Math.sin(t * 5 + i * 0.45) * 0.05; p.y += 3 * dt; // slight droop
-      const dx = p.x - q.x, dy = p.y - q.y, l = Math.hypot(dx, dy) || 1, seg = 0.78;
+      const p = R[i], q = R[i - 1]; p.y += Math.sin(t * 5 + i * 0.45) * 0.05; p.y += 1.9 * dt; // slight droop
+      const dx = p.x - q.x, dy = p.y - q.y, l = Math.hypot(dx, dy) || 1, seg = 0.62;
       p.x = q.x + dx / l * seg; p.y = q.y + dy / l * seg;
     }
   }

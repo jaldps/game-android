@@ -31,8 +31,15 @@ function styleBlend(d) {
   const A = LEGS[li % 5].style, B = LEGS[(li + 1) % 5].style;
   return [A, B, smooth(LEG_LEN - 260, LEG_LEN + 40, f)];
 }
+// A layer's u advances at only L.p of the camera, so u/L.p would place a far ridge thousands of
+// units — several legs — ahead, and Monsoon Coast ends up full of Lantern Valley pagodas. Style
+// is instead read at the biome distance the PLAYER is at, offset by the on-screen position, so
+// every layer is the same biome and the crossfade sweeps across the frame together.
+let _refCam = 0;
+export function setStyleRef(camX) { _refCam = camX; }
+function styleDist(L, u) { return _refCam + (u - _refCam * L.p); }
 export function layerHeight(i, u) {
-  const L = LAYERS[i]; const d = u / L.p;
+  const L = LAYERS[i]; const d = styleDist(L, u);
   const sb = styleBlend(d);
   let h = styleH(sb[0], u, L, i) * STYLE_AMP[sb[0]];
   if (sb[2] > 0) h = lerp(h, styleH(sb[1], u, L, i) * STYLE_AMP[sb[1]], sb[2]);
@@ -111,12 +118,21 @@ function pPagoda(c, x, y, s, k, t, glow) {
 }
 function pWindmill(c, x, y, s, k, t) {
   const h = (8 + k * 4) * s;
-  c.moveTo(x - 1.6 * s, y); c.lineTo(x - 0.8 * s, y - h); c.lineTo(x + 0.8 * s, y - h); c.lineTo(x + 1.6 * s, y); c.closePath();
-  const a0 = t * (0.6 + k * 0.5), cx = x, cy = y - h, L = 5.5 * s;
+  // stone tower with a cap
+  c.moveTo(x - 1.9 * s, y); c.lineTo(x - 1.0 * s, y - h); c.lineTo(x + 1.0 * s, y - h); c.lineTo(x + 1.9 * s, y); c.closePath();
+  c.moveTo(x - 1.5 * s, y - h); c.quadraticCurveTo(x, y - h - 2.1 * s, x + 1.5 * s, y - h); c.closePath();
+  // four solid sails, each a tapered blade with a spine — reads cleanly at any size
+  const a0 = t * (0.5 + k * 0.4), cx = x, cy = y - h - 0.3 * s, L = (5 + k * 1.6) * s, W0 = 1.25 * s;
   for (let j = 0; j < 4; j++) {
-    const a = a0 + j * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), px = -sa * 0.55 * s, py = ca * 0.55 * s;
-    c.moveTo(cx + px * 0.3, cy + py * 0.3); c.lineTo(cx + ca * L + px, cy + sa * L + py); c.lineTo(cx + ca * L - px * 0.2, cy + sa * L - py * 0.2); c.lineTo(cx - px * 0.3, cy - py * 0.3); c.closePath();
+    const a = a0 + j * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+    const r0 = 0.7 * s;
+    c.moveTo(cx + ca * r0 - px * W0 * 0.3, cy + sa * r0 - py * W0 * 0.3);
+    c.lineTo(cx + ca * L - px * W0 * 0.12, cy + sa * L - py * W0 * 0.12);
+    c.lineTo(cx + ca * L + px * W0, cy + sa * L + py * W0);
+    c.lineTo(cx + ca * r0 + px * W0 * 0.55, cy + sa * r0 + py * W0 * 0.55);
+    c.closePath();
   }
+  c.moveTo(cx + 0.75 * s, cy); c.arc(cx, cy, 0.75 * s, 0, 6.283);
 }
 function pHouse(c, x, y, s, k, t, glow) {
   const w = (3 + k * 2) * s, h = (2.2 + k) * s;
@@ -174,6 +190,13 @@ function initStars() {
   stars = []; for (let i = 0; i < 160; i++) stars.push({ x: hash1(i, 3), y: Math.pow(hash1(i, 9), 1.6) * 0.62, r: 0.12 + hash1(i, 5) * 0.28, p: hash1(i, 7) * 6.28 });
 }
 
+// colour of the sky gradient at normalised height v (same stops as drawSky)
+function skyAt(P, v, out) {
+  if (v <= 0.36) mix(P.skyTop, P.skyMid, v / 0.36, out);
+  else if (v <= 0.64) mix(P.skyMid, P.skyLow, (v - 0.36) / 0.28, out);
+  else mix(P.skyLow, P.fog, (v - 0.64) / 0.36, out);
+  return out;
+}
 export function drawSky(c, V, P) {
   const { w, h, s, t } = V;
   const g = c.createLinearGradient(0, 0, 0, h);
@@ -201,8 +224,14 @@ export function drawSky(c, V, P) {
   c.fillStyle = rg; c.fillRect(sx - sr * 9, sy - sr * 9, sr * 18, sr * 18);
   c.globalCompositeOperation = 'source-over';
   c.fillStyle = css(P.sun, 0.96 - P.rain * 0.35); c.beginPath(); c.arc(sx, sy, sr, 0, 6.283); c.fill();
-  if (P.moon > 0.05) { // crescent: overlay a sky-coloured disk
-    mix(P.skyTop, P.skyMid, 0.35, _c1); c.fillStyle = css(_c1, P.moon); c.beginPath(); c.arc(sx + sr * 0.42, sy - sr * 0.28, sr * 0.88, 0, 6.283); c.fill();
+  if (P.moon > 0.05) { // crescent: overlay a disk tinted with the EXACT local sky colour
+    skyAt(P, P.sunY, _c1); c.fillStyle = css(_c1, P.moon); c.beginPath(); c.arc(sx + sr * 0.5, sy - sr * 0.26, sr * 0.92, 0, 6.283); c.fill();
+    // terminator softening so the dark limb isn't a hard bite
+    c.globalCompositeOperation = 'lighter';
+    const tg = c.createRadialGradient(sx - sr * 0.3, sy + sr * 0.2, 0, sx - sr * 0.3, sy + sr * 0.2, sr * 1.3);
+    tg.addColorStop(0, css(P.sun, 0.22 * P.moon)); tg.addColorStop(1, css(P.sun, 0));
+    c.fillStyle = tg; c.beginPath(); c.arc(sx, sy, sr, 0, 6.283); c.fill();
+    c.globalCompositeOperation = 'source-over';
   }
   // god rays (soft wedges)
   if (P.rain < 0.6) {
@@ -258,17 +287,31 @@ export function drawClouds(c, V, P, layer) {
     if (hash1(k, 15) > 0.4) { const x2 = x + len * 0.25, l2 = len * 0.55, y2 = y + th * 2.6; c.moveTo(x2 + th * 0.7, y2); c.arc(x2 + th * 0.7, y2, th * 0.7, Math.PI * 0.5, Math.PI * 1.5); c.lineTo(x2 + l2, y2 - th * 0.7); c.arc(x2 + l2, y2, th * 0.7, -Math.PI * 0.5, Math.PI * 0.5); c.closePath(); }
   }
   c.fill();
-  // storm cloud masses
+  // storm cloud masses: two soft-bottomed banks hanging off the top of the frame, lit along
+  // their crowns so they read as weather rather than grey discs
   if (P.rain > 0.05 && layer === 1) {
-    mix(P.cloud, P.near, 0.35, _c2);
-    c.fillStyle = css(_c2, 0.75 * P.rain); c.beginPath();
-    const span = w + 60 * s;
-    for (let i = 0; i < 14; i++) {
-      const x = ((hash1(i, 21) * span - camX * 0.05 * s - t * 1.5 * s) % span + span) % span - 30 * s;
-      const r = (8 + hash1(i, 22) * 10) * s; const y = (-2 + hash1(i, 23) * 9) * s;
-      c.moveTo(x + r, y); c.arc(x, y, r, 0, 6.283);
+    for (let bank = 0; bank < 2; bank++) {
+      mix(P.cloud, P.near, bank ? 0.55 : 0.28, _c2);
+      const span = w + 120 * s, par = bank ? 0.12 : 0.045, yb = bank ? -1 : -6, N = 30;
+      c.save(); c.beginPath();
+      c.rect(-2, -30 * s, w + 4, (28 + (bank ? 5 : 0)) * s);
+      for (let i = 0; i < N; i++) {
+        const k = i + bank * 60;
+        const x = ((hash1(k, 21) * span - camX * par * s - t * (1 + bank) * s) % span + span) % span - 60 * s;
+        // lumpy: a few big masses, many small puffs, so the skyline never repeats a scallop
+        const big = hash1(k, 24) > 0.62;
+        const r = (big ? 9 + hash1(k, 22) * 13 : 3.5 + hash1(k, 22) * 6) * s * (bank ? 0.82 : 1);
+        const y = (yb + hash1(k, 23) * (big ? 7 : 11)) * s;
+        c.moveTo(x + r, y); c.ellipse(x, y, r, r * (0.72 + hash1(k, 25) * 0.4), 0, 0, 6.283);
+      }
+      c.clip();
+      const g = c.createLinearGradient(0, -12 * s, 0, 24 * s);
+      g.addColorStop(0, css(_c2, 0.95 * P.rain)); g.addColorStop(0.45, css(_c2, 0.82 * P.rain));
+      g.addColorStop(0.78, css(_c2, 0.3 * P.rain)); g.addColorStop(1, css(_c2, 0));
+      c.fillStyle = g; c.fillRect(0, -32 * s, w, 60 * s);
+      c.restore();
     }
-    c.fill();
+    c.beginPath();
   }
 }
 
@@ -296,7 +339,7 @@ export function drawLayer(c, V, P, i) {
     const hh = hash1(ci, 300 + i * 13);
     if (hh > 0.62) continue;
     const u = (ci + 0.2 + hash1(ci, 400 + i) * 0.6) * cw;
-    const d = u / L.p; const sb = styleBlend(d); const st = sb[2] > 0.5 ? sb[1] : sb[0];
+    const sb = styleBlend(styleDist(L, u)); const st = sb[2] > 0.5 ? sb[1] : sb[0];
     const fn = pickProp(st, hash1(ci, 500 + i), i); if (!fn) continue;
     const x = (u - u0) * s; const y = layerHeight(i, u) * s + 0.6 * s;
     fn(c, x, y, ps, hash1(ci, 600 + i), t, (GLOWY.has(fn) && glowCtx && (P.lantern > 0.2 || P.stars > 0.5)) ? glowCtx : null);

@@ -1,9 +1,10 @@
 // Holes: visual (cut-out + inner wall + rim + ground AO ring), movement, growth and the swallow physics.
 import * as THREE from 'three';
 import { CITY, HOLE, levelRadius, levelMass, objectMass } from './config.js';
-import { U, MAX_HOLES } from './materials.js';
+import { U, MAX_HOLES, paintDamage } from './materials.js';
 import { gridQuery, gridRemove, writeObject, hideObject } from './objects.js';
 import { rand, range } from './rng.js';
+const _up = new THREE.Vector3(0, 1, 0);
 
 export const holes = [];
 export const events = [];
@@ -15,14 +16,15 @@ const TOP = CITY.CURB_H + 0.012;
 
 // ---- shared geometries
 const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 56, 6, true); wallGeo.translate(0, -0.5, 0);
-const rimProfile = [[0.975, -0.35], [0.985, 0.03], [1.0, 0.09], [1.04, 0.125], [1.14, 0.135], [1.22, 0.115], [1.26, 0.06], [1.27, -0.02], [1.27, -0.3]].reverse().map(p => new THREE.Vector2(p[0], p[1]));
+const rimProfile = [[0.978, -0.40], [0.988, 0.03], [1.0, 0.085], [1.035, 0.118], [1.11, 0.126], [1.17, 0.104], [1.20, 0.055], [1.21, -0.02], [1.21, -0.34]].reverse().map(p => new THREE.Vector2(p[0], p[1]));
 const rimGeo = new THREE.LatheGeometry(rimProfile, 72);
-const AO_IN = 1.22, AO_OUT = 1.6;
+const AO_IN = 1.17, AO_OUT = 1.62;
 const aoGeo = new THREE.RingGeometry(AO_IN, AO_OUT, 64, 1); aoGeo.rotateX(-Math.PI / 2);
 const bottomGeo = new THREE.CircleGeometry(1, 32); bottomGeo.rotateX(-Math.PI / 2);
 
-const glowGeo = new THREE.RingGeometry(0.98, 1.5, 64, 1); glowGeo.rotateX(-Math.PI / 2);
-{ const p = glowGeo.attributes.position, uv = glowGeo.attributes.uv; for (let i = 0; i < p.count; i++) { const rr = Math.hypot(p.getX(i), p.getZ(i)); uv.setXY(i, (rr - 0.98) / 0.52, 0.5); } }
+const GLOW_IN = 0.99, GLOW_OUT = 1.34;
+const glowGeo = new THREE.RingGeometry(GLOW_IN, GLOW_OUT, 64, 1); glowGeo.rotateX(-Math.PI / 2);
+{ const p = glowGeo.attributes.position, uv = glowGeo.attributes.uv; for (let i = 0; i < p.count; i++) { const rr = Math.hypot(p.getX(i), p.getZ(i)); uv.setXY(i, (rr - GLOW_IN) / (GLOW_OUT - GLOW_IN), 0.5); } }
 const xrayGeo = new THREE.RingGeometry(1.08, 1.16, 72, 1); xrayGeo.rotateX(-Math.PI / 2);
 let GLOW_TEX = null;
 function glowTexture() {
@@ -47,13 +49,24 @@ function wallMaterial(color) {
     uniforms: { uCol: { value: new THREE.Color(color) }, uR: { value: 1 }, uTime: U.uTime },
     vertexShader: `varying vec3 vP; varying vec3 vW; void main(){ vP = position; vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
     fragmentShader: `uniform vec3 uCol; uniform float uR; uniform float uTime; varying vec3 vP; varying vec3 vW;
+      float h12(vec2 p){ vec3 q = fract(vec3(p.xyx)*.1031); q += dot(q, q.yzx+33.33); return fract((q.x+q.y)*q.z); }
       void main(){
         float depth = -vW.y;
-        float k = exp(-depth / (0.35 + uR*0.32));
         float ang = atan(vP.z, vP.x);
-        float streak = 0.85 + 0.15*sin(ang*24.0 + depth*0.6);
-        vec3 c = mix(vec3(0.0), uCol*0.42 + vec3(0.02,0.02,0.04), k) * streak;
-        c += uCol * 0.35 * smoothstep(0.08, 0.0, depth);
+        // broken strata in the exposed collar (never a smooth tube)
+        float stri = 0.86 + 0.14*sin(ang*17.0 + depth*0.9) * (0.5 + 0.5*sin(ang*41.0 - depth*2.1));
+        float chunk = 0.88 + 0.12*h12(vec2(floor(ang*26.0), floor(depth*4.0)));
+        // 1) excavated earth collar immediately under the street
+        float collarH = 0.40 + uR*0.16;
+        float collar = smoothstep(collarH, 0.0, depth);
+        vec3 earth = mix(vec3(0.13,0.10,0.08), vec3(0.37,0.27,0.18), collar*collar);
+        vec3 c = earth * collar * stri * chunk;
+        // 2) below that it falls away to black very fast — a real abyss
+        float k = exp(-depth / (0.11 + uR*0.085));
+        c += uCol * 0.20 * k * stri;
+        // 3) hard contact shadow just beneath the lip, then the bright lip itself
+        c *= 1.0 - 0.55 * smoothstep(0.015, 0.11, depth) * (1.0 - smoothstep(0.11, 0.46, depth));
+        c += uCol * 0.70 * smoothstep(0.075, 0.0, depth);
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -113,13 +126,14 @@ export class Hole {
     this.rimMat = rimMaterial(o.skin);
     this.rim = new THREE.Mesh(rimGeo, this.rimMat); this.rim.position.y = TOP; this.rim.castShadow = false; this.rim.receiveShadow = true;
     if (!AO_TEX) { AO_TEX = aoTexture(); GLOW_TEX = glowTexture(); }
-    this.ao = new THREE.Mesh(aoGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, alphaMap: AO_TEX, depthWrite: false }));
+    this.ao = new THREE.Mesh(aoGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.46, alphaMap: AO_TEX, depthWrite: false }));
     // ring UVs: RingGeometry uv.x isn't radial, so remap
     this.ao.position.y = TOP + 0.002; this.ao.renderOrder = 2;
     this.group.add(this.wall, this.bottom, this.rim, this.ao);
     // glow halo on the ground (additive) and an x-ray outline visible through buildings
-    this.glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: o.skin.a, transparent: true, opacity: 0.55, alphaMap: GLOW_TEX, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    this.glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: o.skin.a, transparent: true, opacity: 0.14, alphaMap: GLOW_TEX, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
     this.glow.position.y = TOP + 0.004; this.glow.renderOrder = 3; this.group.add(this.glow);
+    this.pulse = 0;   // halo only flares when the hole grows
     if (this.isPlayer) {
       this.xray = new THREE.Mesh(xrayGeo, new THREE.MeshBasicMaterial({ color: o.skin.b, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, toneMapped: false }));
       this.xray.position.y = TOP + 0.15; this.xray.renderOrder = 10; this.group.add(this.xray);
@@ -136,7 +150,8 @@ export class Hole {
     const ys = Math.min(2.2, 0.75 + r * 0.22);
     this.rim.scale.set(r, ys, r);
     this.ao.scale.set(r, 1, r);
-    this.glow.scale.set(r, 1, r);
+    this.glow.scale.set(r * (1 + this.pulse * 0.10), 1, r * (1 + this.pulse * 0.10));
+    this.glow.material.opacity = 0.13 + this.pulse * 0.62;
     if (this.xray) this.xray.scale.set(r, 1, r);
     this.group.visible = this.alive;
   }
@@ -145,6 +160,7 @@ export class Hole {
     while (this.level < HOLE.MAX_LEVEL && this.mass >= levelMass(this.level)) {
       this.mass -= levelMass(this.level); this.level++; this.targetR = levelRadius(this.level);
       this.maxLevel = Math.max(this.maxLevel, this.level);
+      this.pulse = 1;
       events.push({ type: 'level', hole: this });
     }
   }
@@ -168,23 +184,34 @@ function startFall(o, h, time) {
   o.state = 1; gridRemove(o);
   const rx = o.x - h.x, rz = o.z - h.z; const d = Math.hypot(rx, rz) || 1;
   const inv = Math.max(0, 1 - o.size / h.r);
-  o.fall = { hole: h, vx: h.vx * 0.6 - rx / d * 1.5, vy: 0, vz: h.vz * 0.6 - rz / d * 1.5, wx: (rand() - 0.5) * 3 * inv, wy: (rand() - 0.5) * 2 * inv, wz: (rand() - 0.5) * 3 * inv, t: 0, inv };
+  // tall things hinge over the lip from their base instead of dropping in upright
+  const topple = o.h > Math.max(1.6, o.size * 1.45) && o.kind !== 'person';
+  o.pivot = topple ? 0.04 : 0.5;
+  o.fall = {
+    hole: h, vx: h.vx * 0.6 - rx / d * (topple ? 0.5 : 1.5), vy: 0, vz: h.vz * 0.6 - rz / d * (topple ? 0.5 : 1.5),
+    wx: (rand() - 0.5) * 3 * inv, wy: (rand() - 0.5) * 2 * inv, wz: (rand() - 0.5) * 3 * inv,
+    t: 0, inv, topple, ang: 0, angV: topple ? 0.35 + rand() * 0.3 : 0, spin: (rand() - 0.5) * 0.9,
+  };
   o.lean = 0; leaning.delete(o);
   if (o.kind === 'person') { const p = o.parts[0]; p.pool.setAttr('aAnim', p.id, rand() * 6, 1, 9); }
   falling.add(o);
+  paintDamage(o.x, o.z, Math.max(1.4, o.size * 1.7), o.kind === 'building' ? 1 : 0.55);
   // scoring + growth
   if (time - h.lastEat < 0.75) h.combo++; else h.combo = 1;
   h.lastEat = time; h.bestCombo = Math.max(h.bestCombo, h.combo);
   const bonus = 1 + Math.min(h.combo, 30) * 0.04;
   const pts = Math.max(1, Math.round(o.value * bonus));
   h.score += pts; h.eaten++;
-  h.addMass(objectMass(o.size) * (h.isPlayer ? 1 : HOLE.BOT_GROW));
+  h.addMass(objectMass(o.size) * (h.isPlayer ? 1 : HOLE.BOT_GROW * (h.growMul ?? 1)));
   events.push({ type: 'eat', hole: h, obj: o, pts });
 }
 
 export function updateHoles(dt, time) {
   // leaning targets reset
   for (const o of leaning) o.leanT = 0;
+  // rubber band: bots that are behind the leader feed faster, so the race stays live to the whistle
+  let topScore = 0; for (const h of holes) if (h.score > topScore) topScore = h.score;
+  for (const h of holes) h.growMul = h.isPlayer ? 1 : 1 + HOLE.BOT_RUBBER * Math.min(1, Math.max(0, (topScore - h.score) / Math.max(80, topScore)));
   for (const h of holes) {
     if (!h.alive) {
       h.respawnT -= dt;
@@ -192,6 +219,9 @@ export function updateHoles(dt, time) {
       continue;
     }
     h.invuln = Math.max(0, h.invuln - dt);
+    h.pulse = Math.max(0, (h.pulse || 0) - dt * 1.9);
+    h.dmgT = (h.dmgT || 0) - dt;
+    if (h.dmgT <= 0) { h.dmgT = 0.09; paintDamage(h.x, h.z, h.r * 1.1, 1); }
     // movement
     const spd = HOLE.SPEED_BASE + HOLE.SPEED_PER_R * h.r;
     const tvx = h.input.x * spd, tvz = h.input.z * spd;
@@ -254,28 +284,40 @@ function stepFall(o, dt) {
   const rx = o.x - h.x, rz = o.z - h.z; const d = Math.hypot(rx, rz) || 1e-3;
   const dirX = -rx / d, dirZ = -rz / d;
   const onRim = o.y > -o.h * 0.35 && d > h.r - o.size * 1.1;
-  // gravity (partially supported by the lip while tipping over it)
-  f.vy -= (onRim ? 9 : 30) * dt;
-  if (f.vy < -40) f.vy = -40;
-  const pull = 8 + 16 * (d / h.r);
-  f.vx += dirX * pull * dt; f.vz += dirZ * pull * dt;
+  if (f.topple) {
+    // hinge over the lip: the rim holds the base up until the thing is past its tipping point,
+    // then the whole mass swings down into the pit.
+    f.angV = Math.min(3.6, f.angV + (2.4 + 3.4 * f.inv) * dt);
+    f.ang += f.angV * dt;
+    _ax.set(dirZ, 0, -dirX); _dq.setFromAxisAngle(_ax, f.angV * dt); o.q.premultiply(_dq);
+    if (Math.abs(f.spin) > 1e-3) { _dq.setFromAxisAngle(_up, f.spin * dt); o.q.multiply(_dq); }
+    const grip = Math.max(0, 1 - f.ang / 1.05);           // 1 while still standing, 0 once committed
+    f.vy -= (4 + 30 * (1 - grip)) * dt;
+    if (f.vy < -38) f.vy = -38;
+    const pull = (2.5 + 9 * (d / h.r)) * (1 - grip * 0.75);
+    f.vx += dirX * pull * dt; f.vz += dirZ * pull * dt;
+  } else {
+    f.vy -= (onRim ? 9 : 30) * dt;
+    if (f.vy < -40) f.vy = -40;
+    const pull = 8 + 16 * (d / h.r);
+    f.vx += dirX * pull * dt; f.vz += dirZ * pull * dt;
+    const tip = (onRim ? (2.2 + 7 * f.inv * f.inv) : 0.6 + 2.0 * f.inv) * dt;
+    f.wx += dirZ * tip * 2.2; f.wz += -dirX * tip * 2.2;
+    const wl = Math.hypot(f.wx, f.wy, f.wz);
+    const maxW = 1.2 + 6 * f.inv; if (wl > maxW) { f.wx *= maxW / wl; f.wy *= maxW / wl; f.wz *= maxW / wl; }
+    if (wl > 1e-4) { _ax.set(f.wx / wl, f.wy / wl, f.wz / wl); _dq.setFromAxisAngle(_ax, wl * dt); o.q.premultiply(_dq); }
+  }
   f.vx += (h.vx - f.vx) * Math.min(1, dt * 2.5); f.vz += (h.vz - f.vz) * Math.min(1, dt * 2.5);
   o.x += f.vx * dt; o.z += f.vz * dt; o.y += f.vy * dt;
   // stay inside the shaft
   const nx = o.x - h.x, nz = o.z - h.z; const nd = Math.hypot(nx, nz);
-  const maxD = Math.max(0, h.r - o.size * 0.75);
+  const maxD = Math.max(0, h.r - o.size * (f.topple ? 0.25 : 0.75));
   if (nd > maxD && nd > 1e-4) {
     o.x = h.x + nx / nd * maxD; o.z = h.z + nz / nd * maxD;
     const vn = (f.vx * nx + f.vz * nz) / nd; if (vn > 0) { f.vx -= vn * nx / nd * 1.3; f.vz -= vn * nz / nd * 1.3; }
   }
-  // tip toward the centre while going over the lip, then tumble
-  const tip = (onRim ? (2.2 + 7 * f.inv * f.inv) : 0.6 + 2.0 * f.inv) * dt;
-  f.wx += dirZ * tip * 2.2; f.wz += -dirX * tip * 2.2;
-  const wl = Math.hypot(f.wx, f.wy, f.wz);
-  const maxW = 1.2 + 6 * f.inv; if (wl > maxW) { f.wx *= maxW / wl; f.wy *= maxW / wl; f.wz *= maxW / wl; }
-  if (wl > 1e-4) { _ax.set(f.wx / wl, f.wy / wl, f.wz / wl); _dq.setFromAxisAngle(_ax, wl * dt); o.q.premultiply(_dq); }
   o.dirty = true;
-  if (o.y + o.base < -(h.depth * 0.8 + o.h) || f.t > 4.5) {
+  if (o.y + o.base < -(h.depth * 0.8 + o.h) || f.t > 5.5) {
     o.state = 2; falling.delete(o); hideObject(o); o.dirty = false;
   }
 }
@@ -307,7 +349,7 @@ export function updateOccluders(p, dt, pitchTan = 0.9) {
     if (o.kind !== 'building' || o.state !== 0) continue;
     const dz = o.z - p.z, dx = Math.abs(o.x - p.x);
     const occ = dx < o.size + p.r * 0.9 && dz > -o.size * 0.6 && dz < o.h / pitchTan + o.size;
-    if (occ) { o.fadeT = 0.72; fading.add(o); }
+    if (occ) { o.fadeT = 1.0; fading.add(o); }
   }
   for (const o of fading) {
     const t = o.fadeT || 0; o.fadeT = 0;

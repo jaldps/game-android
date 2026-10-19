@@ -108,8 +108,8 @@ export function writeObject(o) {
   _q.copy(o.q);
   if (o.lean) { _lq.setFromAxisAngle(_ax.set(o.leanZ, 0, -o.leanX), o.lean); _q.premultiply(_lq); }
   _q.multiply(_qy);
-  // rotate about COM: M = T(pos + com) * R * T(-com)
-  _com.set(0, o.h * 0.5, 0);
+  // rotate about the pivot (COM by default; tall things that topple hinge near their base)
+  _com.set(0, o.h * (o.pivot ?? 0.5), 0);
   _m.compose(_p.set(o.x, o.y + o.base, o.z), _q, _s.set(1, 1, 1));
   // adjust so rotation pivots around com: pos' = pos + com - R*com
   const rc = _rc.copy(_com).applyQuaternion(_q);

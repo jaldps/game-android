@@ -1,7 +1,7 @@
 // Frame composition: backdrop -> gameplay layer (floor, obstacles w/ sun rim light, motes, strays,
 // birds, ribbon, hawks) -> glow -> weather -> blurred foreground -> grade/vignette/grain.
 import { css, mix, hash1, clamp, lerp, fbm1 } from './util.js';
-import { drawSky, drawClouds, drawLayer, drawHaze } from './backdrop.js';
+import { drawSky, drawClouds, drawLayer, drawHaze, setStyleRef } from './backdrop.js';
 import { glowPush, glowFlush, glowClear } from './glow.js';
 import { LV, floorY, WATER_Y, isWaterAt } from './level.js';
 import { F, HAWKS } from './flock.js';
@@ -40,6 +40,7 @@ export function drawFrame(P, G) {
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
   glowClear();
+  setStyleRef(V.camX);
   drawSky(c, V, P);
   drawClouds(c, V, P, 0);
   drawLayer(c, V, P, 0);
@@ -103,6 +104,15 @@ function drawFloor(P, camX) {
   const g = c.createLinearGradient(0, minY, 0, h);
   g.addColorStop(0, css(_a)); g.addColorStop(0.35, css(P.near)); g.addColorStop(1, css(P.near));
   c.fillStyle = g; c.fill();
+  // rim-lit crest: a thin lit edge along the ground, brightest on the sun side of the frame
+  mix(P.near, P.rim, 0.55, _d);
+  c.save(); c.lineWidth = Math.max(1, 0.22 * s); c.lineJoin = 'round';
+  const eg = c.createLinearGradient(0, 0, w, 0);
+  const sxn = clamp(P.sunX, 0.05, 0.95);
+  eg.addColorStop(0, css(_d, 0.06)); eg.addColorStop(sxn, css(_d, 0.5)); eg.addColorStop(1, css(_d, 0.06));
+  c.strokeStyle = eg; c.beginPath();
+  for (let x = -step; x <= w + step; x += step) { const wx = camX + x / s; if (isWaterAt(wx)) { c.moveTo(x, (WATER_Y + 4) * s); continue; } const y = floorY(wx) * s; if (x <= -step) c.moveTo(x, y); else c.lineTo(x, y); }
+  c.stroke(); c.restore();
   if (water) drawWater(P, camX);
 }
 function styleAtX(x) { const li = Math.floor(x / 2000); return ['dunes', 'canyon', 'coast', 'valley', 'peaks'][((li % 5) + 5) % 5]; }
@@ -139,20 +149,31 @@ function drawWater(P, camX) {
   c.beginPath(); c.moveTo(x0, h);
   for (let x = x0; x <= x1 + 1; x += step) c.lineTo(x, wy + Math.sin((camX * s + x) * 0.02 / V.dpr + t * 2) * 0.25 * s);
   c.lineTo(x1, h); c.closePath(); c.fill();
-  // sun glitter column + wave lines
+  // bright shoreline rim where sky meets water
+  c.save(); c.beginPath(); c.rect(x0, wy - 0.6 * s, x1 - x0, h - wy); c.clip();
+  mix(P.water, P.rim, 0.5, _d);
+  const rim = c.createLinearGradient(0, wy - 0.5 * s, 0, wy + 2.4 * s);
+  rim.addColorStop(0, css(_d, 0.55)); rim.addColorStop(1, css(_d, 0));
+  c.fillStyle = rim; c.fillRect(x0, wy - 0.5 * s, x1 - x0, 3 * s);
+  // sun/moon glitter column: soft lozenges, widening with distance from the horizon
   const sx = P.sunX * w;
-  c.fillStyle = css(P.sun, 0.5);
-  for (let i = 0; i < 26; i++) {
-    const yy = wy + (0.6 + i * 0.32) * s; if (yy > h) break;
-    const ww = (1.5 + hash1(i, 33) * 5) * s * (1 + i * 0.05), xx = sx + (hash1(i, 34) - 0.5) * 7 * s + Math.sin(t * 1.5 + i) * s;
-    if (xx > x0 && xx < x1) c.fillRect(xx - ww / 2, yy, ww, Math.max(1, s * 0.16));
+  for (let i = 0; i < 30; i++) {
+    const yy = wy + (0.5 + i * 0.3) * s; if (yy > h) break;
+    const d2 = i / 30, ww = (1.2 + hash1(i, 33) * 4.5) * s * (1 + d2 * 2.2);
+    const xx = sx + (hash1(i, 34) - 0.5) * (6 + d2 * 16) * s + Math.sin(t * 1.4 + i * 1.7) * 1.2 * s;
+    if (xx < x0 - ww || xx > x1 + ww) continue;
+    c.fillStyle = css(P.sun, 0.34 * (1 - d2 * 0.55) * (0.65 + 0.35 * Math.sin(t * 2.4 + i)));
+    c.beginPath(); c.ellipse(xx, yy, ww * 0.5, Math.max(0.8, s * 0.12), 0, 0, 6.283); c.fill();
   }
-  c.fillStyle = css(P.cap, 0.18);
-  for (let i = 0; i < 40; i++) {
-    const yy = wy + (1 + hash1(i, 35) * 7) * s, ww = (2 + hash1(i, 36) * 6) * s;
-    const xx = ((hash1(i, 37) * w * 1.2 - (camX * s * (0.8 + (yy - wy) / s * 0.06))) % (w * 1.2) + w * 1.2) % (w * 1.2) - w * 0.1;
-    if (xx > x0 && xx < x1) c.fillRect(xx, yy, ww, Math.max(1, s * 0.12));
+  // drifting wave crests
+  for (let i = 0; i < 44; i++) {
+    const yy = wy + (0.9 + hash1(i, 35) * 7) * s, d2 = (yy - wy) / s / 7.5, ww = (2 + hash1(i, 36) * 7) * s * (0.6 + d2);
+    const xx = ((hash1(i, 37) * w * 1.2 - (camX * s * (0.75 + d2 * 0.1))) % (w * 1.2) + w * 1.2) % (w * 1.2) - w * 0.1;
+    if (xx < x0 || xx > x1) continue;
+    c.fillStyle = css(P.cap, 0.06 + 0.13 * d2);
+    c.beginPath(); c.ellipse(xx, yy, ww * 0.5, Math.max(0.8, s * 0.1), 0, 0, 6.283); c.fill();
   }
+  c.restore();
 }
 
 // ---------- obstacles ----------
@@ -192,8 +213,11 @@ function drawObstacle(o, P, camX) {
     // caps (snow on peaks, grass on islands)
     if (o.capTop !== undefined && (o.st === 'peaks' || o.kind === 'island' || o.st === 'valley')) {
       const snow = o.st === 'peaks';
-      if (snow) mix(P.cap, P.rim, 0.2, _d); else mix(P.near, [90, 140, 90], 0.22, _d);
-      c.fillStyle = css(_d, snow ? 0.95 : 0.9); c.beginPath();
+      // Snow takes the sky's own cap colour; vegetation is a desaturated moss tinted by the
+      // leg's rim light, so a dusk tower never wears a flat mid-green hat.
+      if (snow) mix(P.cap, P.rim, 0.2, _d);
+      else { mix(P.near, [74, 112, 76], 0.3, _d); mix(_d, P.rim, 0.16, _d); }
+      c.fillStyle = css(_d, snow ? 0.95 : 0.8); c.beginPath();
       const cy = o.capTop + (snow ? 4.5 : 1.6);
       c.moveTo(sx0 - 5, (o.minY - 3) * s);
       for (let x = sx0 - 5; x <= sx1 + 5; x += 4 * V.dpr) c.lineTo(x, (cy + Math.sin(x * 0.11 / V.dpr) * (snow ? 1.2 : 0.4) + hash1((x / 4) | 0, 5) * (snow ? 0.6 : 0.2)) * s);
@@ -220,6 +244,7 @@ function drawDeco(o, P, camX) {
     else if (d.k === 'round') { c.rect(x - 0.2 * s * k, y - 2.5 * s * k, 0.4 * s * k, 2.6 * s * k); c.moveTo(x + 1.8 * s * k, y - 3.4 * s * k); c.arc(x, y - 3.4 * s * k, 1.8 * s * k, 0, 6.283); c.moveTo(x + 1.3 * s * k + 1.1 * s * k, y - 4.5 * s * k); c.arc(x + 1.1 * s * k, y - 4.5 * s * k, 1.3 * s * k, 0, 6.283); }
     else if (d.k === 'palm') { const hh = 6 * s * k; c.moveTo(x - 0.2 * s, y); c.quadraticCurveTo(x + 0.5 * s, y - hh * 0.6, x + 1.2 * s * k, y - hh); c.lineTo(x + 1.5 * s * k, y - hh); c.quadraticCurveTo(x + 0.8 * s, y - hh * 0.6, x + 0.25 * s, y); c.closePath(); const tx = x + 1.35 * s * k, ty = y - hh; for (let j = 0; j < 5; j++) { const a = -2.9 + j * 0.62, L = 2.8 * s * k; c.moveTo(tx, ty); c.quadraticCurveTo(tx + Math.cos(a) * L * 0.5, ty + Math.sin(a) * L * 0.5 - 0.5 * s, tx + Math.cos(a) * L, ty + Math.sin(a) * L * 0.4 + L * 0.35); c.quadraticCurveTo(tx + Math.cos(a) * L * 0.5, ty + Math.sin(a) * L * 0.5, tx, ty + 0.25 * s); } }
     else if (d.k === 'cactus') { const hh = 3.5 * s * k, ww = 0.5 * s * k; c.moveTo(x - ww, y); c.lineTo(x - ww, y - hh); c.arc(x, y - hh, ww, Math.PI, 0); c.lineTo(x + ww, y); c.closePath(); }
+    else if (d.k === 'drip') { const L = d.l * s, w = 0.28 * s; c.moveTo(x - w, y); c.lineTo(x + w, y); c.lineTo(x + w * 0.15, y + L); c.closePath(); }
     else if (d.k === 'vine') { const L = d.l * s, sw = Math.sin(t * 1.2 + d.x) * 0.5 * s; c.moveTo(x - 0.12 * s, y - 1 * s); c.quadraticCurveTo(x + sw, y + L * 0.6, x + sw * 1.5, y + L); c.lineTo(x + sw * 1.5 + 0.18 * s, y + L); c.quadraticCurveTo(x + sw + 0.2 * s, y + L * 0.6, x + 0.12 * s, y - 1 * s); c.closePath(); }
   }
   c.fill();
@@ -284,12 +309,27 @@ function drawBolts(P, camX, pass) {
   const s = V.s, h = V.h;
   for (const b of LV.bolts) {
     const x = (b.x - camX) * s; if (x < -40 || x > V.w + 40) continue;
-    if (b.st === 1 && pass === 0) { // telegraph: flickering charge column
-      const a = 0.12 + 0.18 * Math.abs(Math.sin(b.t * 30)) * (b.t / 1.25);
-      const g = c.createLinearGradient(x - 3 * s, 0, x + 3 * s, 0);
-      g.addColorStop(0, 'rgba(200,230,255,0)'); g.addColorStop(0.5, `rgba(220,240,255,${a.toFixed(3)})`); g.addColorStop(1, 'rgba(200,230,255,0)');
-      c.fillStyle = g; c.fillRect(x - 3 * s, 0, 6 * s, h);
-      glowPush(b.x - camX, WATER_Y - 0.5, 3 * (b.t / 1.25), 0.6);
+    if (b.st === 1 && pass === 0) { // telegraph: charged air — soft column + crawling filaments
+      const u = clamp(b.t / 1.6, 0, 1), a = (0.05 + 0.13 * u) * (0.75 + 0.25 * Math.abs(Math.sin(b.t * 26)));
+      const wdt = (2.2 + 3.4 * u) * s;
+      const g = c.createLinearGradient(x - wdt, 0, x + wdt, 0);
+      g.addColorStop(0, 'rgba(190,225,255,0)'); g.addColorStop(0.35, `rgba(215,238,255,${(a * 0.45).toFixed(3)})`);
+      g.addColorStop(0.5, `rgba(235,248,255,${a.toFixed(3)})`); g.addColorStop(0.65, `rgba(215,238,255,${(a * 0.45).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(190,225,255,0)');
+      const vg = c.createLinearGradient(0, 0, 0, h);
+      vg.addColorStop(0, 'rgba(0,0,0,1)'); vg.addColorStop(1, 'rgba(0,0,0,0)');
+      c.save(); c.fillStyle = g; c.fillRect(x - wdt, 0, wdt * 2, h);
+      // vertical static filaments, denser as the charge builds
+      c.globalAlpha = 0.5 + 0.5 * u; c.strokeStyle = `rgba(226,244,255,${(0.1 + 0.22 * u).toFixed(3)})`;
+      c.lineWidth = Math.max(1, 0.1 * s); c.beginPath();
+      for (let k = 0; k < 5; k++) {
+        const sd = b.seed + k * 37 + ((b.t * 18) | 0) * 101;
+        let py = 0, px = x + (hash1(k, sd) - 0.5) * wdt * 1.2; c.moveTo(px, py);
+        for (let j = 1; j <= 9; j++) { py = j / 9 * h; px = x + (hash1(j, sd) - 0.5) * wdt * 1.5; c.lineTo(px, py); }
+      }
+      c.stroke(); c.restore();
+      glowPush(b.x - camX, WATER_Y - 0.5, 2 + 3 * u, 0.5 * u, [190, 225, 255]);
+      glowPush(b.x - camX, 4, 2.5 + 3 * u, 0.45 * u, [190, 225, 255]);
     } else if (b.st === 2 && pass === 1) {
       c.strokeStyle = 'rgba(255,255,255,0.95)'; c.lineWidth = Math.max(2, 0.55 * s); c.lineJoin = 'round';
       c.beginPath(); let px = x, py = 0; c.moveTo(px, py);
@@ -380,8 +420,12 @@ function drawBirds(P, camX) {
 }
 function drawRibbon(P, camX) {
   const R = F.ribbon, s = V.s, t = V.t; if (!F.lead || !F.lead.alive || R.length < 2) return;
-  const len = Math.min(R.length, Math.round(10 + (F.ribbonLen || 0)));
-  c.fillStyle = '#e8483c';
+  const len = Math.min(R.length, Math.round(9 + (F.ribbonLen || 0) * 0.85));
+  const hx = (R[0].x - camX) * s, hy = R[0].y * s, tx = (R[len - 1].x - camX) * s, ty = R[len - 1].y * s;
+  const gr = c.createLinearGradient(hx, hy, tx, ty);
+  gr.addColorStop(0, 'rgba(255,122,86,0.98)'); gr.addColorStop(0.35, 'rgba(232,72,60,0.95)');
+  gr.addColorStop(0.78, 'rgba(206,56,64,0.55)'); gr.addColorStop(1, 'rgba(188,50,70,0)');
+  c.fillStyle = gr;
   c.beginPath();
   // two edges of a tapered strip with flutter
   for (let pass = 0; pass < 2; pass++) {
@@ -403,7 +447,7 @@ function drawHawks(P, camX) {
     const x = (h.x - camX) * s, y = h.y * s;
     if (h.st === 'warn') {
       // edge warning badge
-      const bx = V.w - 4.5 * s, by = clamp(y, 8 * s, V.h - 8 * s), pu = 1 + 0.15 * Math.sin(t * 14);
+      const bx = V.w - 8 * s, by = clamp(y, 30 * s, V.h - 10 * s), pu = 1 + 0.15 * Math.sin(t * 14);
       c.fillStyle = `rgba(255,80,60,${(0.25 + 0.2 * Math.sin(t * 14)).toFixed(3)})`; c.beginPath(); c.arc(bx, by, 3.6 * s * pu, 0, 6.283); c.fill();
       c.fillStyle = 'rgba(255,245,235,0.95)'; c.beginPath(); c.arc(bx, by, 2.5 * s, 0, 6.283); c.fill();
       c.fillStyle = '#3a1020'; c.beginPath(); hawkPath(bx, by, Math.PI, Math.sin(t * 10), 1.2 * s); c.fill();
@@ -433,28 +477,61 @@ function drawTouchRings(P, G) {
 }
 
 // ---------- blurred foreground silhouettes (fake depth of field) ----------
+// A continuous out-of-focus foreground: a dark ridge along the bottom with grass, reeds, rocks
+// and the odd overhanging branch. Rendered at quarter res and upscaled, which both blurs it
+// (fake DOF) and keeps it nearly free. It never climbs into the play band (y < 92).
 function drawForeground(P) {
   const fw = fgCv.width, fh = fgCv.height, k = fh / 100;
   fgC.clearRect(0, 0, fw, fh);
-  mix(P.near, [0, 0, 0], 0.35, _a); fgC.fillStyle = css(_a);
-  const par = 1.7, u0 = V.camX * par, cw = 150;
-  let any = false;
-  fgC.beginPath();
-  for (let ci = Math.floor(u0 / cw); ci <= Math.floor((u0 + fw / k) / cw); ci++) {
-    if (hash1(ci, 77) > 0.42) continue;
-    any = true;
-    const ux = (ci + hash1(ci, 78)) * cw, x = (ux - u0) * k, typ = hash1(ci, 79);
-    if (typ < 0.6) { // tall grass clump bottom
-      for (let j = 0; j < 9; j++) {
-        const bx = x + (j - 4) * 1.6 * k, hh = (8 + hash1(j, ci) * 16) * k, sw = Math.sin(V.t * 1.3 + j + ci) * 2 * k;
-        fgC.moveTo(bx - 0.9 * k, fh + 2); fgC.quadraticCurveTo(bx + sw * 0.4, fh - hh * 0.6, bx + sw + (j - 4) * 0.8 * k, fh - hh); fgC.quadraticCurveTo(bx + sw * 0.4 + 0.6 * k, fh - hh * 0.5, bx + 0.9 * k, fh + 2); fgC.closePath();
+  mix(P.near, [0, 0, 0], 0.42, _a);
+  const par = 1.7, u0 = V.camX * par, t = V.t;
+  const ridgeY = u => (94.6 - 1.9 * fbm1(u * 0.012, 404, 3) - 0.8 * Math.sin(u * 0.05)) * k;
+
+  // --- ridge body ---
+  fgC.beginPath(); fgC.moveTo(-4, fh + 4);
+  const step = Math.max(3, fw / 90);
+  for (let x = -step; x <= fw + step; x += step) fgC.lineTo(x, ridgeY(u0 + x / k));
+  fgC.lineTo(fw + step, fh + 4); fgC.closePath();
+
+  // --- things growing out of it ---
+  const cw = 13;
+  for (let ci = Math.floor(u0 / cw) - 1; ci <= Math.floor((u0 + fw / k) / cw) + 1; ci++) {
+    const ux = (ci + hash1(ci, 78)) * cw, x = (ux - u0) * k, y = ridgeY(ux) + 0.6 * k, r = hash1(ci, 77);
+    if (r < 0.46) { // grass / reed clump
+      const n = 4 + ((hash1(ci, 80) * 6) | 0), sc = 0.55 + hash1(ci, 81) * 1.1;
+      for (let j = 0; j < n; j++) {
+        const bx = x + (j - n / 2) * 1.15 * k * sc, hh = (3.5 + hash1(j, ci * 7 + 1) * 8) * k * sc;
+        const sw = Math.sin(t * 1.25 + j * 0.9 + ci) * 1.5 * k * sc;
+        fgC.moveTo(bx - 0.5 * k, y + 2 * k);
+        fgC.quadraticCurveTo(bx + sw * 0.35, y - hh * 0.6, bx + sw + (j - n / 2) * 0.5 * k, y - hh);
+        fgC.quadraticCurveTo(bx + sw * 0.35 + 0.45 * k, y - hh * 0.5, bx + 0.5 * k, y + 2 * k);
+        fgC.closePath();
       }
-    } else { // overhanging branch from top
-      const yy = -2 * k; fgC.moveTo(x - 30 * k, yy); fgC.quadraticCurveTo(x, yy + 9 * k, x + 22 * k, yy + 5 * k); fgC.lineTo(x + 22 * k, yy + 6.5 * k); fgC.quadraticCurveTo(x, yy + 11 * k, x - 30 * k, yy + 3 * k); fgC.closePath();
-      for (let j = 0; j < 8; j++) { const lx = x - 24 * k + j * 6 * k, ly = yy + 6 * k + Math.sin(j) * 2 * k + Math.sin(V.t + j) * 0.6 * k; fgC.moveTo(lx + 3 * k, ly + 2 * k); fgC.ellipse(lx, ly + 2 * k, 3 * k, 1.4 * k, 0.6 + j * 0.2, 0, 6.283); }
+    } else if (r < 0.60) { // boulder
+      const rw = (2 + hash1(ci, 82) * 4.5) * k, rh = rw * (0.5 + hash1(ci, 83) * 0.4);
+      fgC.moveTo(x + rw, y + 2 * k); fgC.ellipse(x, y + 0.5 * k, rw, rh, hash1(ci, 84) * 0.5, Math.PI, 0); fgC.closePath();
+    } else if (r < 0.70) { // thin dry stalks with seed heads
+      for (let j = 0; j < 3; j++) {
+        const bx = x + (j - 1) * 2.2 * k, hh = (7 + hash1(j, ci) * 9) * k, sw = Math.sin(t * 0.9 + j + ci) * 2.2 * k;
+        fgC.moveTo(bx - 0.26 * k, y + 2 * k); fgC.quadraticCurveTo(bx + sw * 0.4, y - hh * 0.55, bx + sw, y - hh);
+        fgC.quadraticCurveTo(bx + sw * 0.4 + 0.3 * k, y - hh * 0.5, bx + 0.26 * k, y + 2 * k); fgC.closePath();
+        fgC.moveTo(bx + sw + 0.9 * k, y - hh); fgC.ellipse(bx + sw, y - hh - 0.3 * k, 0.9 * k, 1.9 * k, 0.1, 0, 6.283);
+      }
     }
   }
-  if (!any) return;
-  fgC.fill();
-  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.globalAlpha = 0.9; c.drawImage(fgCv, 0, 0, V.w, V.h); c.globalAlpha = 1;
+  // --- occasional overhanging branch from the top of the frame ---
+  const bw = 210;
+  for (let ci = Math.floor(u0 / bw) - 1; ci <= Math.floor((u0 + fw / k) / bw); ci++) {
+    if (hash1(ci, 91) > 0.4) continue;
+    const ux = (ci + hash1(ci, 92)) * bw, x = (ux - u0) * k, side = hash1(ci, 93) < 0.5 ? 1 : -1, yy = -2 * k;
+    fgC.moveTo(x - side * 34 * k, yy); fgC.quadraticCurveTo(x, yy + 8 * k, x + side * 20 * k, yy + 4.5 * k);
+    fgC.lineTo(x + side * 20 * k, yy + 6.2 * k); fgC.quadraticCurveTo(x, yy + 10.4 * k, x - side * 34 * k, yy + 2.6 * k); fgC.closePath();
+    for (let j = 0; j < 9; j++) {
+      const lx = x - side * (26 - j * 5.6) * k, ly = yy + 5.6 * k + Math.sin(j * 1.3) * 1.8 * k + Math.sin(t * 0.9 + j) * 0.6 * k;
+      fgC.moveTo(lx + 2.8 * k, ly + 2 * k); fgC.ellipse(lx, ly + 2 * k, 2.8 * k, 1.3 * k, side * (0.5 + j * 0.18), 0, 6.283);
+    }
+  }
+  fgC.fillStyle = css(_a); fgC.fill();
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.globalAlpha = 0.94; c.drawImage(fgCv, 0, 0, V.w, V.h); c.globalAlpha = 1;
 }

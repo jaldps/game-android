@@ -1,10 +1,10 @@
 // City generation: block layout, buildings, props, vehicles, pedestrians.
 import * as THREE from 'three';
-import { CITY, PAL } from './config.js';
+import { CITY, PAL, MEGAS } from './config.js';
 import { rand, range, irange, pick, chance } from './rng.js';
 import * as G from './geom.js';
-import { paintMaterial, facadeMaterial, decalMaterial, U } from './materials.js';
-import { Pool, addObject, objects, DECAL, initParts, writeObject, gridInsert, initGrid, resetObjects } from './objects.js';
+import { paintMaterial, facadeMaterial, decalMaterial, U, initDamage, clearDamage } from './materials.js';
+import { Pool, addObject, objects, DECAL, initParts, writeObject, gridInsert, gridRemove, hideObject, initGrid, resetObjects } from './objects.js';
 
 const _c = new THREE.Color();
 const M = (x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, ry = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(sx, sy, sz));
@@ -12,7 +12,7 @@ const col = hex => new THREE.Color(hex);
 const jit = (hex, a = 0.06) => { _c.set(hex); const hsl = {}; _c.getHSL(hsl); return new THREE.Color().setHSL(hsl.h + (rand() - .5) * a * 0.5, Math.min(1, hsl.s * (1 + (rand() - .5) * a * 2)), Math.min(0.95, hsl.l * (1 + (rand() - .5) * a))); };
 
 export const P = {};      // pools
-export const city = { blocks: [], nodes: [], peds: [], cars: [], blockTex: null, spawnPoints: [] };
+export const city = { blocks: [], nodes: [], peds: [], cars: [], blockTex: null, spawnPoints: [], megas: [], scrap: [], recycle: [], recycleAt: 0 };
 
 // Object tiers: size = footprint radius used for "fits in the hole" test, value = points & growth mass
 const T = {
@@ -25,6 +25,9 @@ const T = {
   car: { size: 1.72, h: 1.5, value: 18 }, van: { size: 1.85, h: 1.9, value: 22 }, truck: { size: 3.0, h: 3.2, value: 40 },
   bus: { size: 3.6, h: 3.0, value: 55 }, kiosk: { size: 1.8, h: 3.1, value: 28 }, busstop: { size: 1.6, h: 2.4, value: 12 },
   fountain: { size: 2.9, h: 2.9, value: 45 }, billboard: { size: 2.3, h: 4.2, value: 16 }, fence: { size: 1.9, h: 0.9, value: 3 },
+  // dig-site leftovers — the city keeps feeding you after the buildings are gone
+  rubble: { size: 1.05, h: 1.1, value: 9 }, dirtpile: { size: 1.3, h: 1.0, value: 7 },
+  cfence: { size: 1.7, h: 1.15, value: 4 }, digger: { size: 1.9, h: 2.2, value: 26 }, sign: { size: 1.2, h: 2.2, value: 10 },
 };
 
 function makePools() {
@@ -41,7 +44,8 @@ function makePools() {
   for (let v = 0; v < 3; v++) add('person' + v, G.person([0, 2, 3][v]), mPeople, { tint2: 3, aAnim: 3 });
   for (const k of ['car', 'taxi', 'police', 'van', 'bus', 'truck']) add(k, G.car(k), mCar);
   for (const k of ['round', 'conifer', 'palm', 'bush']) add(k === 'round' ? 'tree' : k, G.tree(k), mTree);
-  for (const k of ['hydrant', 'bin', 'bench', 'lamp', 'mailbox', 'cone', 'booth', 'busstop', 'table', 'kiosk', 'cart', 'fountain', 'planter', 'signal', 'ac', 'tank', 'heli', 'antenna', 'chimney', 'billboard', 'fence', 'flowerbed', 'statue', 'solar', 'hut', 'garden']) add(k, G.prop(k), mProp);
+  for (const k of ['hydrant', 'bin', 'bench', 'lamp', 'mailbox', 'cone', 'booth', 'busstop', 'table', 'kiosk', 'cart', 'fountain', 'planter', 'signal', 'ac', 'tank', 'heli', 'antenna', 'chimney', 'billboard', 'fence', 'flowerbed', 'statue', 'solar', 'hut', 'garden', 'rubble', 'dirtpile', 'cfence', 'digger', 'sign']) add(k, G.prop(k), mProp);
+  for (const k of ['spire', 'stadium', 'wheel']) add(k, G.mega(k), mProp);
   const dg = new THREE.PlaneGeometry(1, 1); dg.rotateX(-Math.PI / 2);
   DECAL.pool = add('decal', dg, decalMaterial());
 }
@@ -311,29 +315,163 @@ function spawnPed(b, mode) {
   return o;
 }
 
-function promenade() {
+// The outer district: a wrap-around esplanade with a landmark skyline so the last 40 s of a
+// round still has something worth chasing, plus the three set-pieces.
+function outerDistrict() {
   const H = CITY.HALF, y = CITY.CURB_H;
-  const L = CITY.SPAN / 2 + 2;
-  for (let k = -L; k <= L; k += 9) {
-    for (const [x, z, yaw] of [[k, -H + 2.2, 0], [k, H - 2.2, Math.PI], [-H + 2.2, k, Math.PI / 2], [H - 2.2, k, -Math.PI / 2]]) {
-      const idx = Math.round(k / 9);
+  const L = CITY.SPAN / 2 + 6;
+  // four sides: e is the inset from the platform edge
+  const sides = [
+    { ax: 1, sx: 0, sz: -1, yaw: 0 },        // north strip (z negative)
+    { ax: 1, sx: 0, sz: 1, yaw: Math.PI },   // south
+    { ax: 0, sx: -1, sz: 0, yaw: Math.PI / 2 },  // west
+    { ax: 0, sx: 1, sz: 0, yaw: -Math.PI / 2 },  // east
+  ];
+  const at = (s, t, e) => s.ax ? [t, (H - e) * s.sz] : [(H - e) * s.sx, t];
+  for (const s of sides) {
+    for (let t = -L; t <= L; t += 9) {
+      const idx = Math.round(t / 9);
+      let [x, z] = at(s, t, 2.4);
       if (idx % 2 === 0) simple('palm', 'palm', x + range(-0.5, 0.5), z + range(-0.5, 0.5), rand() * 6, y, { color: jit('#6fbf4a', 0.1), sc: range(0.9, 1.2) });
-      else if (chance(0.6)) simple('bench', 'bench', x, z, yaw + Math.PI, y);
-      if (idx % 3 === 1) simple('lamp', 'lamp', x * 1.0 + (Math.abs(x) > Math.abs(z) ? Math.sign(x) * 1.0 : 0), z + (Math.abs(z) >= Math.abs(x) ? Math.sign(z) * 1.0 : 0), yaw, y);
+      else if (chance(0.6)) { [x, z] = at(s, t, 3.2); simple('bench', 'bench', x, z, s.yaw, y); }
+      if (idx % 3 === 1) { [x, z] = at(s, t, 5.4); simple('lamp', 'lamp', x, z, s.yaw, y); }
+      // promenade band props
+      if (idx % 2 === 1) { [x, z] = at(s, t + 3, 8.0); simple('bin', 'bin', x, z, 0, y, { color: jit('#2f8f5b', 0.05) }); }
+      if (idx % 4 === 2) { [x, z] = at(s, t, 7.4); simple('cart', 'cart', x, z, s.yaw, y, { color: col(pick(['#3fa7ff', '#ff5a5f', '#43d17a', '#ffb000'])) }); }
+      if (idx % 5 === 0) { [x, z] = at(s, t, 9.6); simple('kiosk', 'kiosk', x, z, s.yaw, y, { color: jit(pick(PAL.walls)) }); }
+      // green belt
+      if (idx % 2 === 0) { [x, z] = at(s, t + 4, 12.0); simple('tree', chance(0.7) ? 'tree' : 'conifer', x, z, rand() * 6, y, { color: jit(pick(PAL.foliage), 0.15), sc: range(0.9, 1.15) }); }
+      if (idx % 3 === 0) { [x, z] = at(s, t, 16.6); simple('bush', 'bush', x, z, rand() * 6, y, { color: jit(pick(PAL.foliage), 0.12), sc: 1.1 }); }
+      if (idx % 6 === 3) { [x, z] = at(s, t, 14.0); simple('flowerbed', 'flowerbed', x, z, s.ax ? 0 : Math.PI / 2, y); }
+    }
+    // landmark skyline: a staggered row of tall towers on the civic plaza
+    for (let t = -L + 6; t <= L - 6; t += 27) {
+      if (Math.abs(t) > H - 46) continue;
+      const e = 30 + (Math.round(t / 27) % 2 ? 7 : 0);
+      const [x, z] = at(s, t + range(-2, 2), e);
+      const w = range(9.5, 12.5);
+      building(chance(0.45) ? 'tower' : 'office', x, z, w, w * range(0.82, 1.0), y, s.ax ? 0 : Math.PI / 2);
+      for (const [ox, oz] of [[-1, -1], [1, 1]]) simple('planter', 'planter', x + ox * (w * 0.5 + 2.2), z + oz * (w * 0.5 + 2.2), 0, y, { color: jit(pick(PAL.foliage)) });
+      if (chance(0.5)) simple('tree', 'tree', x + range(-w, w), z + (s.ax ? s.sz * -(w * 0.6 + 4) : range(-w, w)), rand() * 6, y, { color: jit(pick(PAL.foliage), 0.15) });
+    }
+    // plaza clutter between the towers
+    for (let t = -L + 14; t <= L - 14; t += 27) {
+      if (Math.abs(t) > H - 46) continue;
+      const [x, z] = at(s, t, 24);
+      simple('statue', 'statue', x, z, rand() * 6, y, { sc: 1.2 });
+      for (let k = 0; k < 3; k++) simple('bench', 'bench', x + range(-6, 6), z + range(-6, 6), rand() * 6, y);
+      if (chance(0.6)) simple('table', 'table', x + range(-7, 7), z + range(-7, 7), rand() * 6, y, { color: col(pick(['#ff5a5f', '#3fa7ff', '#ffd23f'])) });
+    }
+    // sea rail
+    for (let t = -L - 10; t < L + 10; t += 4.2) { const [x, z] = at(s, t + 2.1, 0.5); simple('fence', 'fence', x, z, s.ax ? 0 : Math.PI / 2, y, { decal: false }); }
+  }
+}
+
+// ---------- set-pieces ----------
+function megaObject(def, x, z, yaw) {
+  const h = def.id === 'spire' ? 142 : def.id === 'stadium' ? 23 : 28;
+  const o = addObject({
+    type: def.id, kind: 'mega', x, z, yaw, base: CITY.CURB_H, size: def.size, h, value: def.value,
+    parts: [{ pool: P[def.id], local: M(0, 0, 0, 1, 1, 1) }],
+    decal: { w: def.size * 2.2, d: def.size * 2.2 },
+  });
+  o.mega = def.id; o.megaDef = def;
+  city.megas.push(o);
+  return o;
+}
+function placeMegas() {
+  const H = CITY.HALF, y = CITY.CURB_H;
+  const spots = [
+    [0, -(H - 24), 0],            // north — straight ahead of the default view
+    [H - 25, range(-30, 30), 0],  // east
+    [-(H - 25), range(-30, 30), 0], // west
+  ];
+  const order = [0, 1, 2].sort(() => rand() - 0.5);
+  MEGAS.forEach((def, i) => {
+    const [x, z] = spots[order[i]];
+    megaObject(def, x, z, rand() * 6.28);
+    // dressing around each set-piece so it reads as a destination
+    for (let k = 0; k < 10; k++) {
+      const a = k / 10 * Math.PI * 2, rr = def.size + range(3, 7);
+      simple(chance(0.5) ? 'lamp' : 'planter', chance(0.5) ? 'lamp' : 'planter', x + Math.cos(a) * rr, z + Math.sin(a) * rr, -a, y, { color: jit(pick(PAL.foliage)) });
+    }
+    for (let k = 0; k < 6; k++) simple('bench', 'bench', x + range(-def.size - 9, def.size + 9), z + range(-def.size - 9, def.size + 9), rand() * 6, y);
+    for (let k = 0; k < 3; k++) parkedCar(x + range(-def.size - 10, def.size + 10), z + range(-def.size - 10, def.size + 10), rand() * 6, y);
+  });
+}
+
+// ---------- dig-site scrap: pre-reserved props that appear where a building used to stand ----------
+const SCRAP_PLAN = [['rubble', 170], ['cfence', 90], ['dirtpile', 60], ['digger', 22], ['sign', 28]];
+function makeScrap() {
+  city.scrap = [];
+  for (const [type, n] of SCRAP_PLAN) for (let k = 0; k < n; k++) {
+    const o = simple(type, type, 0, 0, 0, CITY.CURB_H, { color: type === 'digger' ? col(pick(['#f2b01e', '#e8692a', '#3fa7ff'])) : undefined, decal: type === 'rubble' || type === 'dirtpile' ? false : undefined });
+    o.scrap = type; city.scrap.push(o);
+  }
+}
+/** Dress the footprint of a swallowed building with rubble, barriers and plant. */
+export function spawnScrap(x, z, size, hole) {
+  const free = city.scrap;
+  const n = Math.min(free.length, size > 6 ? 6 : size > 3.5 ? 4 : 2);
+  for (let k = 0; k < n; k++) {
+    const o = free.pop(); if (!o) return;
+    const a = rand() * 6.28, rr = range(0.2, 1.0) * (size + 1.5);
+    o.x = x + Math.cos(a) * rr; o.z = z + Math.sin(a) * rr;
+    // never drop scrap straight back into the mouth that just ate the building
+    if (hole && Math.hypot(o.x - hole.x, o.z - hole.z) < hole.r * 1.25) { free.push(o); continue; }
+    o.yaw = rand() * 6.28; o.state = 0; o.y = 0; o.lean = 0; o.leanT = 0; o.fall = null; o.pivot = 0.5;
+    o.q.identity(); o.vis = true;
+    gridInsert(o); writeObject(o);
+  }
+}
+/** Recycle props that have already been eaten back into quiet parts of the map. */
+export function respawnProps(holes, budget = 2) {
+  const far = (x, z) => { for (const h of holes) if (h.alive && Math.hypot(h.x - x, h.z - z) < h.r + 26) return false; return true; };
+  let placed = 0;
+  for (let guard = 0; guard < 40 && placed < budget; guard++) {
+    const o = city.recycle[city.recycleAt++ % city.recycle.length];
+    if (!o || o.state !== 2) continue;
+    const b = pick(city.blocks);
+    const x = b.cx + range(-10, 10), z = b.cz + range(-10, 10);
+    if (!far(x, z)) continue;
+    o.x = x; o.z = z; o.yaw = rand() * 6.28; o.state = 0; o.y = 0; o.lean = 0; o.leanT = 0; o.fall = null; o.pivot = 0.5;
+    o.q.identity(); o.vis = true; gridInsert(o); writeObject(o); placed++;
+  }
+}
+
+// Loose clutter in the gutters and on crossings so the first five seconds of a round pay out.
+function streetClutter() {
+  const N = CITY.NX + 1, y = 0.02;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const cx = CITY.X0 + i * CITY.PITCH + CITY.ROAD / 2, cz = CITY.X0 + j * CITY.PITCH + CITY.ROAD / 2;
+    for (const [dx, dz] of [[1, 0], [0, 1]]) {
+      if ((dx && i >= CITY.NX) || (dz && j >= CITY.NX)) continue;
+      for (let s = 7; s < CITY.PITCH - 6; s += range(5.5, 9)) {
+        const x = cx + dx * s + dz * range(-3.2, 3.2), z = cz + dz * s + dx * range(-3.2, 3.2);
+        const r = rand();
+        if (r < 0.3) simple('cone', 'cone', x, z, rand() * 6, y);
+        else if (r < 0.5) simple('bin', 'bin', x, z, rand() * 6, y, { color: jit(pick(['#2f8f5b', '#3d4f63', '#d35a2f']), 0.05) });
+        else if (r < 0.62) simple('hydrant', 'hydrant', x, z, rand() * 6, y);
+        else if (r < 0.74) simple('mailbox', 'mailbox', x, z, rand() * 6, y);
+        else if (r < 0.86) simple('bench', 'bench', x, z, rand() * 6, y);
+        else simple('planter', 'planter', x, z, 0, y, { color: jit(pick(PAL.foliage)) });
+      }
     }
   }
-  for (let k = -L; k < L; k += 4.2) for (const [x, z, yaw] of [[k + 2.1, -H + 0.4, 0], [k + 2.1, H - 0.4, 0], [-H + 0.4, k + 2.1, Math.PI / 2], [H - 0.4, k + 2.1, Math.PI / 2]]) simple('fence', 'fence', x, z, yaw, y, { decal: false });
 }
 
 export function buildCity(scene) {
-  resetObjects(); initGrid();
+  resetObjects(); initGrid(); initDamage(CITY.HALF); clearDamage();
   for (const k in P) delete P[k];
-  city.blocks = []; city.peds = []; city.cars = [];
+  city.blocks = []; city.peds = []; city.cars = []; city.megas = []; city.scrap = []; city.recycle = []; city.recycleAt = 0;
   makePools();
   buildRoadGraph();
   const blocks = chooseTypes(); city.blocks = blocks;
   for (const b of blocks) fillBlock(b);
-  promenade();
+  streetClutter();
+  outerDistrict();
+  placeMegas();
+  makeScrap();
   // pedestrians
   for (const b of blocks) {
     const n = b.kind === 'downtown' ? 12 : b.kind === 'midtown' ? 10 : b.kind === 'shops' ? 9 : 6;
@@ -353,12 +491,32 @@ export function buildCity(scene) {
   tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.needsUpdate = true;
   U.uBlocks.value = tex; city.blockTex = tex;
   // build GPU pools
-  const noShadow = new Set(['decal', 'heli', 'fence', 'cone', 'hydrant', 'mailbox', 'bin', 'ac', 'chimney', 'flowerbed', 'solar', 'garden', 'antenna']);
+  const noShadow = new Set(['decal', 'heli', 'fence', 'cone', 'hydrant', 'mailbox', 'bin', 'ac', 'chimney', 'flowerbed', 'solar', 'garden', 'antenna', 'cfence']);
   for (const k in P) P[k].build(scene, { cast: !noShadow.has(k), receive: k !== 'decal' });
   P.decal.mesh.renderOrder = 1; P.decal.mesh.castShadow = false; P.decal.mesh.receiveShadow = false;
   for (const o of objects) { initParts(o); gridInsert(o); writeObject(o); }
+  // park the scrap off-stage until a building is swallowed
+  for (const o of city.scrap) { o.state = 2; o.vis = false; gridRemove(o); hideObject(o); }
+  // props that may be recycled back into cleared ground later in the round
+  city.recycle = objects.filter(o => o.kind === 'prop' && !o.scrap && o.size > 0.5 && o.size < 2.0);
   for (const k in P) P[k].flush();
   return city;
+}
+
+/** The nearest block centre with food still standing — used to pick a fair player spawn. */
+export function bestSpawn(avoid, minDist) {
+  let best = null, bestScore = -1;
+  for (let k = 0; k < 90; k++) {
+    const b = pick(city.blocks);
+    const x = b.cx + range(-6, 6), z = b.cz + range(-6, 6);
+    let ok = true;
+    for (const a of avoid) if (Math.hypot(a[0] - x, a[1] - z) < minDist) { ok = false; break; }
+    if (!ok) continue;
+    const food = b.kind === 'shops' || b.kind === 'park' || b.kind === 'plaza' || b.kind === 'residential' ? 1.6 : 1.0;
+    const s = food * (1 + rand() * 0.4);
+    if (s > bestScore) { bestScore = s; best = [x, z]; }
+  }
+  return best || [range(-40, 40), range(-40, 40)];
 }
 
 export { spawnPed, spawnCar, T as TIERS };

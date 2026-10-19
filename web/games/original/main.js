@@ -22,6 +22,7 @@ const G = {
   mode: 'boot', t: 0, camX: 0, speed: 30, score: 0, dist: 0, startX: 0, mult: 1, streak: 0, light: 0, strays: 0, threads: 0, deterred: 0,
   flash: 0, hurt: 0, shake: 0, touching: false, hawkT: 8, overT: 0, legSeen: 0, arrived: false, rng: mulberry32(1), bot: false, paused: false,
   deathSfxT: 0, vibT: 0, autoRestart: 0, menuBot: true, lastLegIdx: 0, hintSplitShown: false, hintHawkShown: false, splitHintT: 0,
+  causes: {},
 };
 window.__game = G; G.F = F; G.LV = LV;
 
@@ -32,7 +33,7 @@ let userGesture = false;
 function newRun(opts = {}) {
   const seed = Q.seed !== null ? Q.seed : (Date.now() % 100000);
   const leg = opts.leg !== undefined ? opts.leg : S.startLeg;
-  G.rng = mulberry32(seed + 1);
+  G.rng = mulberry32(seed + 1); G.causes = {};
   G.camX = leg * LEG_LEN + (leg > 0 ? 40 : 0); G.startX = G.camX;
   G.score = 0; G.dist = 0; G.mult = 1; G.streak = 0; G.light = 0; G.strays = 0; G.threads = 0; G.deterred = 0;
   G.flash = 0; G.hurt = 0; G.shake = 0; G.hawkT = 9; G.overT = 0; G.arrived = false; G.lastLegIdx = leg; G.t = 0;
@@ -87,6 +88,7 @@ function endRun() {
 // ---------------- simulation ----------------
 const cb = {
   onDeath(b, cause) {
+    G.causes[cause] = (G.causes[cause] || 0) + 1;
     feathers(b.x, b.y, b.vx, 6);
     if (cause === 'water') splash(b.x, WATER_Y);
     if (G.deathSfxT <= 0) { A.sHit(); G.deathSfxT = 0.07; }
@@ -295,22 +297,30 @@ onPauseResume(() => { if (G.mode === 'play') pause(); A.suspendAudio(); G.bg = t
 addEventListener('resize', () => resize());
 
 // ---------------- loop ----------------
-let last = performance.now(), fpsAcc = 0, fpsN = 0;
+let last = performance.now(), fpsAcc = 0, fpsN = 0, acc = 0;
+const STEP = 1 / 60;
+window.__fps = 60;
 function frame(now) {
   requestAnimationFrame(frame);
   const raw = Math.max(0, (now - last) / 1000); last = now;
   fpsAcc += raw; fpsN++; if (fpsAcc > 0.5) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   if (G.bg) return;
-  const dt = Q.fixed ? 1 / 60 : Math.min(raw, 1 / 30);
-  if (G.mode !== 'paused' && G.mode !== 'over') sim(dt);
-  else if (G.mode === 'over') { G.t += dt * 0.3; V.t = G.t; }
+  // Deterministic fixed-step accumulator. On a 60 fps phone this is one step a frame; on a
+  // slow device (or headless SwiftShader) it catches up in substeps, capped so a long stall
+  // can never spiral. ?fixedstep=1 pins exactly one step per rendered frame for screenshots.
+  let steps;
+  if (Q.fixed) { steps = 1; acc = 0; }
+  else { acc = Math.min(acc + raw, 0.5); steps = Math.floor(acc / STEP); acc -= steps * STEP; }
+  const dt = STEP;
+  if (G.mode !== 'paused' && G.mode !== 'over') { for (let i = 0; i < steps; i++) sim(dt); }
+  else if (G.mode === 'over') { G.t += steps * dt * 0.3; V.t = G.t; }
   // camera + shake
   V.camX = G.camX; V.speed = G.speed;
   const sh = G.shake * G.shake * 0.8; V.shakeX = (Math.random() - 0.5) * sh; V.shakeY = (Math.random() - 0.5) * sh;
   updatePalette(G.camX + V.W * 0.25, G.flash);
   const t0 = performance.now(); drawFrame(P, G); window.__drawMs = Math.round(performance.now() - t0);
   if (G.mode === 'play' || G.mode === 'dying') UI.hud(G, F, P);
-  A.tickAudio(dt, G.speed, G.mode === 'play');
+  A.tickAudio(Math.max(STEP, Math.min(0.5, raw)), G.speed, G.mode === 'play');
 }
 
 // ---------------- boot ----------------
