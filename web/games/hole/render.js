@@ -135,12 +135,13 @@ function buildWater(scene) {
 // Camera framing for a hole of radius r at (x,z).
 // Deliberately close and wide-angle: the pit has to own the frame and the perspective has to be
 // strong enough that you read building FRONTS and parallax, not a flat plan view of rooftops.
-export const CAM = { FOV: 56, PITCH: 46, BASE: 11.8, PER_D: 2.05, PULL: 0 };
+export const CAM = { FOV: 56, PITCH: 45, BASE: 13.5, PER_D: 3.05, PULL: 0 };
 export function frameCamera(x, z, r, dt, snap = false) {
   const cam = R.camera; const aspect = cam.aspect;
   const land = aspect > 1;
-  // visible ground width at the focus point: hole diameter stays 20–25% of the screen at LV1
-  // and climbs toward ~45% as it grows, exactly like the frames we are judged against.
+  // Visible ground width at the focus point. The hole's diameter is ~20% of the screen at LV1 and
+  // creeps to ~31% at max size: close enough to read building fronts, never so close that the pit
+  // swallows the frame (critic fix 4).
   const want = (CAM.BASE + Math.max(0, 2 * r - 2.32) * CAM.PER_D) * (land ? 1.9 : 1) * (1 + CAM.PULL);
   const vf = THREE.MathUtils.degToRad(cam.fov);
   const hf = 2 * Math.atan(Math.tan(vf / 2) * Math.min(1, aspect));

@@ -158,9 +158,13 @@ vec3 roadCol(vec2 p, vec2 l, bool rx, bool rz, out float rough){
 // a landscaped green belt with a jogging loop, then a tiled civic plaza where the ring towers stand.
 vec3 promenade(vec2 p, out float rough){
   rough = 0.85;
-  float e = HALFP - max(abs(p.x), abs(p.y));   // distance to platform edge
+  float e0 = HALFP - max(abs(p.x), abs(p.y));   // distance to platform edge
   float along = abs(p.x) > abs(p.y) ? p.y : p.x;
   float across = abs(p.x) > abs(p.y) ? p.x : p.y;
+  // Landscaping meanders. Ruler-straight bands running the whole waterfront read as painted
+  // racing stripes; a couple of octaves of wobble turn them into planting that was laid out.
+  float wob = (vnoise(vec2(along*0.032, 3.7)) - 0.5)*5.4 + (vnoise(vec2(along*0.115, 8.1)) - 0.5)*1.8;
+  float e = e0 + wob * smoothstep(4.5, 9.5, e0);
   vec3 c;
   if (e < 0.9) {
     c = vec3(0.90,0.88,0.84)*(0.95+0.07*vnoise(p*2.0));
@@ -182,12 +186,20 @@ vec3 promenade(vec2 p, out float rough){
     rough = 0.8;
   } else if (e < 18.0) {                                  // green belt + jogging loop
     c = grassCol(p*0.9 + 41.0);
-    float trk = band(e, 13.0, 14.4);
-    vec3 track = vec3(0.74,0.42,0.33)*(0.92+0.1*vnoise(p*5.0));
-    c *= 1.0 - 0.2*(band(e, 12.6, 13.0) + band(e, 14.4, 14.8));
+    float trk = band(e, 13.1, 14.3);
+    vec3 track = vec3(0.70,0.45,0.37)*(0.92+0.1*vnoise(p*5.0));
+    c *= 1.0 - 0.2*(band(e, 12.7, 13.1) + band(e, 14.3, 14.7));
     c = mix(c, track, trk);
     float hedge = band(e, 11.0, 11.6);
     c = mix(c, uGrassA*0.78, hedge*0.85);
+    // planting beds dotted through the lawn so it is never one flat field of green
+    vec2 bid = vec2(floor(along/9.0), floor((e - 11.0)/3.4));
+    float bh = hash12(bid);
+    float bd = step(0.58, bh) * (1.0 - smoothstep(0.42, 0.9, length(vec2(fract(along/9.0), fract((e-11.0)/3.4)) - 0.5)*2.0));
+    bd *= 1.0 - trk;
+    c = mix(c, vec3(0.44,0.31,0.21)*(0.9+0.2*vnoise(p*6.0)), bd*0.85);
+    vec3 bloom = bh > 0.84 ? vec3(0.92,0.46,0.56) : (bh > 0.72 ? vec3(0.95,0.78,0.34) : vec3(0.76,0.52,0.90));
+    c = mix(c, bloom, bd*0.5*step(0.55, vnoise(p*9.0)));
     rough = 1.0;
   } else {                                                // civic plaza: large stone tiles + tree pits
     vec2 t = p / 3.2; vec2 id = floor(t); vec2 fr = fract(t);
@@ -196,10 +208,12 @@ vec3 promenade(vec2 p, out float rough){
     c *= 0.9 + 0.1*vnoise(p*1.4);
     float g = smoothstep(0.0, 0.035, min(min(fr.x,1.-fr.x), min(fr.y,1.-fr.y)));
     c *= 0.86 + 0.14*g;
-    // tree pits every other tile
-    float pit = 1.0 - smoothstep(0.78, 0.86, length(fr-0.5)*2.0);
-    pit *= step(0.5, mod(id.x+id.y, 2.0)) * step(0.55, h);
-    c = mix(c, vec3(0.40,0.31,0.22)*(0.9+0.15*vnoise(p*7.0)), pit*0.9);
+    // gravel tree pits with a kerb ring — dark mud discs read as stains on a pale plaza
+    float rr = length(fr-0.5)*2.0;
+    float pitOn = step(0.5, mod(id.x+id.y, 2.0)) * step(0.64, h);
+    float pit = (1.0 - smoothstep(0.58, 0.66, rr)) * pitOn;
+    c = mix(c, vec3(0.60,0.53,0.43)*(0.9+0.16*vnoise(p*9.0)), pit*0.85);
+    c *= 1.0 - 0.22*band(rr, 0.58, 0.72)*pitOn;
     // kerb where the plaza meets the green belt
     c *= 1.0 - 0.18*band(e, 18.0, 18.5);
     rough = 0.7;
@@ -328,28 +342,34 @@ vec3 groundColor(vec2 p, float up, float wy, out float rough){
   vec3 c = groundColorBase(p, up, wy, rough);
   if (up < 0.5) return c;
   float dmg = texture2D(uDamage, (p + HALFP) / (2.0*HALFP)).r;
-  if (dmg < 0.012) return c;
-  float n = fbm(p*0.55 + 3.3);
+  if (dmg < 0.10) return c;
+  float n = fbm(p*0.5 + 3.3);
   float n2 = vnoise(p*2.6);
-  float d = clamp(dmg*1.35 - 0.30 + n*0.42 - 0.2, 0.0, 1.0);
-  if (d <= 0.001) return c;
-  // torn kerb line where the paving gives way
-  float lip = band(d, 0.02, 0.17);
-  c = mix(c, c*0.52, lip*0.85);
-  // churned earth with grit and gravel
-  vec3 dirt = mix(vec3(0.40,0.30,0.21), vec3(0.58,0.46,0.33), n2);
-  dirt *= 0.88 + 0.22*vnoise(p*7.0);
-  float grit = step(0.90, hash12(floor(p*2.6)));
-  dirt = mix(dirt, vec3(0.63,0.60,0.56)*(0.8+0.4*hash12(floor(p*2.6)+9.)), grit*0.75);
-  float tread = band(fract((p.x*0.7 + p.y*0.7)), 0.0, 0.18) * 0.5 + band(fract((p.x-p.y)*0.55), 0.0, 0.14)*0.4;
-  dirt *= 1.0 - 0.14*tread;
-  float k = smoothstep(0.08, 0.46, d);
-  c = mix(c, dirt, k);
-  // settled centre sinks into shadow
-  c *= 1.0 - 0.42*smoothstep(0.42, 1.0, d);
-  // damp patches
-  c = mix(c, vec3(0.26,0.26,0.28), smoothstep(0.80, 1.0, d) * 0.35 * smoothstep(0.45,0.7,n2));
-  rough = mix(rough, 1.0, k);
+  // Centred noise, so the mask only breaks up an edge that is already there instead of
+  // sprinkling blotches across clean streets.
+  float d = clamp((dmg - 0.10)*1.02 + (n - 0.5)*0.30, 0.0, 1.0);
+  if (d <= 0.01) return c;
+  // 1) where the hole merely rolled through: a film of dust that dirties whatever was there.
+  //    Tinting towards brown instead would paint a mud stripe over clean paving.
+  float dust = smoothstep(0.0, 0.22, d);
+  c *= mix(vec3(1.0), vec3(0.90,0.845,0.775) * (0.90 + 0.16*vnoise(p*1.6)), dust);
+  c = mix(c, c*0.80, dust*0.42*vnoise(p*0.9));
+  // 2) where a building actually came out: a real excavation.
+  float dig = smoothstep(0.46, 0.86, d);
+  if (dig > 0.002) {
+    vec3 dirt = mix(vec3(0.34,0.25,0.17), vec3(0.55,0.43,0.30), n2);
+    dirt *= 0.86 + 0.26*vnoise(p*7.0);
+    float grit = step(0.90, hash12(floor(p*2.6)));
+    dirt = mix(dirt, vec3(0.60,0.57,0.52)*(0.82+0.36*hash12(floor(p*2.6)+9.)), grit*0.7);
+    float tread = band(fract(p.x*0.7 + p.y*0.7), 0.0, 0.18)*0.5 + band(fract((p.x-p.y)*0.55), 0.0, 0.14)*0.4;
+    dirt *= 1.0 - 0.16*tread;
+    c = mix(c, dirt, dig);
+    c *= 1.0 - 0.40*smoothstep(0.74, 1.0, d);
+    c = mix(c, vec3(0.24,0.25,0.27), smoothstep(0.90, 1.0, d)*0.4*smoothstep(0.45, 0.7, n2));
+  }
+  // torn lip where the paving gives way to open earth
+  c = mix(c, c*0.52, band(d, 0.42, 0.52)*0.85);
+  rough = mix(rough, 1.0, max(dust*0.4, dig));
   return c;
 }
 `;
@@ -611,7 +631,15 @@ if (vFade > 0.01 && uCut.w > 0.5) {
       fs = fs.replace('#include <color_fragment>', '{ vec3 fc; facade(pow(vColor.rgb, vec3(1.0/2.2)), fc, gRough, gMetal, gEmis); diffuseColor.rgb = pow(max(fc, vec3(0.0)), vec3(2.2)) * vAO; gEmis = pow(gEmis, vec3(2.2)); }\n');
     } else {
       let extra = '';
-      if (o.shingles) extra = 'diffuseColor.rgb *= 0.86 + 0.14*smoothstep(0.0, 0.25, fract(vOP.y*3.2)); diffuseColor.rgb *= 0.95 + 0.08*hash12(floor(vec2(vOP.x*2.0 + floor(vOP.y*3.2)*0.5, vOP.y*3.2)));\n';
+      // roof tiles: visible courses with a shaded lower edge and per-tile colour variation,
+      // so a close-up roof is never one flat slab of colour
+      if (o.shingles) extra = `{
+        float row = vOP.y*4.4; float sh = fract(row);
+        diffuseColor.rgb *= 0.76 + 0.24*smoothstep(0.0, 0.30, sh) * smoothstep(1.0, 0.80, sh);
+        vec2 tid = floor(vec2(vOP.x*2.6 + mod(floor(row), 2.0)*0.5, row));
+        diffuseColor.rgb *= 0.90 + 0.17*hash12(tid);
+        diffuseColor.rgb *= 1.0 - 0.18*smoothstep(0.055, 0.0, abs(fract(vOP.x*2.6 + mod(floor(row), 2.0)*0.5) - 0.5)*2.0);
+      }\n`;
       fs = fs.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vAO;\n' + extra);
     }
     if (o.kind === 'ground' || o.kind === 'facade') {
@@ -638,8 +666,9 @@ export function paintMaterial(o = {}) {
   return patch(m, { kind: 'paint', anim: o.anim || null, aoH: o.aoH ?? 0.9, aoMin: o.aoMin ?? 0.62, shingles: !!o.shingles, darkK: o.darkK ?? 0.3, discard: !!o.discard, belowClip: true });
 }
 
-// 96x96 excavation mask over the platform; painted wherever something has been swallowed.
-export const DMG = { size: 96, data: null, tex: null, dirty: false, half: 0 };
+// Excavation mask over the platform; painted wherever something has been swallowed.
+// 256 across ~334 m of city is ~1.3 m per texel — fine enough that a dig site has an edge.
+export const DMG = { size: 256, data: null, tex: null, dirty: false, half: 0 };
 export function initDamage(half) {
   const n = DMG.size;
   DMG.half = half;

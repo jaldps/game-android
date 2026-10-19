@@ -4,7 +4,7 @@ import { CITY, PAL, MEGAS } from './config.js';
 import { rand, range, irange, pick, chance } from './rng.js';
 import * as G from './geom.js';
 import { paintMaterial, facadeMaterial, decalMaterial, U, initDamage, clearDamage } from './materials.js';
-import { Pool, addObject, objects, DECAL, initParts, writeObject, gridInsert, gridRemove, hideObject, initGrid, resetObjects } from './objects.js';
+import { Pool, addObject, objects, DECAL, initParts, writeObject, gridInsert, gridRemove, gridQuery, hideObject, initGrid, resetObjects } from './objects.js';
 
 const _c = new THREE.Color();
 const M = (x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, ry = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(sx, sy, sz));
@@ -331,8 +331,8 @@ function outerDistrict() {
   ];
   const at = (s, t, e) => s.ax ? [t, (H - e) * s.sz] : [(H - e) * s.sx, t];
   for (const s of sides) {
-    for (let t = -L; t <= L; t += 9) {
-      const idx = Math.round(t / 9);
+    for (let t = -L; t <= L; t += 6.5) {
+      const idx = Math.round(t / 6.5);
       let [x, z] = at(s, t, 2.4);
       if (idx % 2 === 0) simple('palm', 'palm', x + range(-0.5, 0.5), z + range(-0.5, 0.5), rand() * 6, y, { color: jit('#6fbf4a', 0.1), sc: range(0.9, 1.2) });
       else if (chance(0.6)) { [x, z] = at(s, t, 3.2); simple('bench', 'bench', x, z, s.yaw, y); }
@@ -346,23 +346,35 @@ function outerDistrict() {
       if (idx % 3 === 0) { [x, z] = at(s, t, 16.6); simple('bush', 'bush', x, z, rand() * 6, y, { color: jit(pick(PAL.foliage), 0.12), sc: 1.1 }); }
       if (idx % 6 === 3) { [x, z] = at(s, t, 14.0); simple('flowerbed', 'flowerbed', x, z, s.ax ? 0 : Math.PI / 2, y); }
     }
-    // landmark skyline: a staggered row of tall towers on the civic plaza
-    for (let t = -L + 6; t <= L - 6; t += 27) {
-      if (Math.abs(t) > H - 46) continue;
-      const e = 30 + (Math.round(t / 27) % 2 ? 7 : 0);
+    // Landmark skyline: a dense staggered wall of towers along the whole waterfront. This is the
+    // late-game larder (critic fix 2) and it also puts a real skyline behind the esplanade instead
+    // of leaving the outer ring as flat coloured bands.
+    for (let t = -L + 5; t <= L - 5; t += 17) {
+      if (Math.abs(t) > H - 40) continue;
+      const e = 31 + (Math.round(t / 17) % 2 ? 6.5 : 0);
       const [x, z] = at(s, t + range(-2, 2), e);
       const w = range(9.5, 12.5);
-      building(chance(0.45) ? 'tower' : 'office', x, z, w, w * range(0.82, 1.0), y, s.ax ? 0 : Math.PI / 2);
+      building(chance(0.5) ? 'tower' : 'office', x, z, w, w * range(0.82, 1.0), y, s.ax ? 0 : Math.PI / 2);
       for (const [ox, oz] of [[-1, -1], [1, 1]]) simple('planter', 'planter', x + ox * (w * 0.5 + 2.2), z + oz * (w * 0.5 + 2.2), 0, y, { color: jit(pick(PAL.foliage)) });
       if (chance(0.5)) simple('tree', 'tree', x + range(-w, w), z + (s.ax ? s.sz * -(w * 0.6 + 4) : range(-w, w)), rand() * 6, y, { color: jit(pick(PAL.foliage), 0.15) });
     }
+    // a second, lower row of apartments between the towers and the green belt
+    for (let t = -L + 13; t <= L - 13; t += 17) {
+      if (Math.abs(t) > H - 40) continue;
+      const [x, z] = at(s, t + range(-1.5, 1.5), 21.5);
+      const w = range(7.0, 8.6);
+      building(chance(0.65) ? 'apt' : 'shop', x, z, w, w * range(0.85, 1.0), y, s.ax ? 0 : Math.PI / 2);
+      if (chance(0.6)) simple('tree', chance(0.6) ? 'tree' : 'conifer', x + range(-7, 7), z + range(-5, 5), rand() * 6, y, { color: jit(pick(PAL.foliage), 0.15), sc: range(0.8, 1.0) });
+      if (chance(0.5)) parkedCar(x + range(-8, 8), z + range(-6, 6), rand() * 6, y);
+    }
     // plaza clutter between the towers
-    for (let t = -L + 14; t <= L - 14; t += 27) {
-      if (Math.abs(t) > H - 46) continue;
-      const [x, z] = at(s, t, 24);
-      simple('statue', 'statue', x, z, rand() * 6, y, { sc: 1.2 });
-      for (let k = 0; k < 3; k++) simple('bench', 'bench', x + range(-6, 6), z + range(-6, 6), rand() * 6, y);
-      if (chance(0.6)) simple('table', 'table', x + range(-7, 7), z + range(-7, 7), rand() * 6, y, { color: col(pick(['#ff5a5f', '#3fa7ff', '#ffd23f'])) });
+    for (let t = -L + 9; t <= L - 9; t += 17) {
+      if (Math.abs(t) > H - 40) continue;
+      const [x, z] = at(s, t, 26.5);
+      if (chance(0.5)) simple('statue', 'statue', x, z, rand() * 6, y, { sc: 1.2 });
+      for (let k = 0; k < 3; k++) simple('bench', 'bench', x + range(-5, 5), z + range(-4, 4), rand() * 6, y);
+      if (chance(0.6)) simple('table', 'table', x + range(-6, 6), z + range(-4, 4), rand() * 6, y, { color: col(pick(['#ff5a5f', '#3fa7ff', '#ffd23f'])) });
+      if (chance(0.45)) simple('cart', 'cart', x + range(-6, 6), z + range(-4, 4), rand() * 6, y, { color: col(pick(['#3fa7ff', '#ff5a5f', '#43d17a'])) });
     }
     // sea rail
     for (let t = -L - 10; t < L + 10; t += 4.2) { const [x, z] = at(s, t + 2.1, 0.5); simple('fence', 'fence', x, z, s.ax ? 0 : Math.PI / 2, y, { decal: false }); }
@@ -505,17 +517,37 @@ export function buildCity(scene) {
   return city;
 }
 
-/** The nearest block centre with food still standing — used to pick a fair player spawn. */
+/**
+ * A fair, interesting player spawn (critic fix 6): always on a street or sidewalk — never boxed
+ * into a courtyard between four house walls — and chosen by actually counting the small props
+ * standing within a few seconds' travel, so the first five seconds pay out.
+ */
+const _sq = [];
 export function bestSpawn(avoid, minDist) {
   let best = null, bestScore = -1;
-  for (let k = 0; k < 90; k++) {
+  for (let k = 0; k < 140; k++) {
     const b = pick(city.blocks);
-    const x = b.cx + range(-6, 6), z = b.cz + range(-6, 6);
+    const t = range(3.5, CITY.BLOCK - 3.5);
+    const off = CITY.ROAD * 0.5 + range(-1.5, 1.0);   // kerb line, give or take
+    let x, z;
+    switch (Math.floor(rand() * 4)) {
+      case 0: x = b.x0 + t; z = b.z0 - off; break;
+      case 1: x = b.x0 + t; z = b.z0 + CITY.BLOCK + off; break;
+      case 2: x = b.x0 - off; z = b.z0 + t; break;
+      default: x = b.x0 + CITY.BLOCK + off; z = b.z0 + t;
+    }
     let ok = true;
     for (const a of avoid) if (Math.hypot(a[0] - x, a[1] - z) < minDist) { ok = false; break; }
     if (!ok) continue;
-    const food = b.kind === 'shops' || b.kind === 'park' || b.kind === 'plaza' || b.kind === 'residential' ? 1.6 : 1.0;
-    const s = food * (1 + rand() * 0.4);
+    gridQuery(x, z, 14, _sq);
+    let s = 0;
+    for (let i = 0; i < _sq.length; i++) {
+      const o = _sq[i];
+      if (o.state !== 0 || o.size > 1.05) continue;        // must fit a level-1 mouth
+      const d = Math.hypot(o.x - x, o.z - z);
+      if (d < 14) s += (o.value + 1) / (3 + d);
+    }
+    s *= 0.9 + rand() * 0.2;
     if (s > bestScore) { bestScore = s; best = [x, z]; }
   }
   return best || [range(-40, 40), range(-40, 40)];

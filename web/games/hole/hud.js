@@ -39,15 +39,15 @@ export function updateLabels(holes, cam, leader) {
   }
 }
 
-export function popup(text, x, y, z, cam, cls = '') {
+export function popup(text, x, y, z, cam, cls = '', dy = 0) {
   const [sx, sy] = project(x, y, z, cam);
   let p = pops.find(q => !q.alive);
   if (!p) { if (pops.length > 40) return; const el = document.createElement('div'); el.className = 'pp'; $('popups').appendChild(el); p = { el, alive: false }; pops.push(p); }
-  // keep popups on screen and out of each other's way
+  // keep popups on screen, clear of the mouth, and out of each other's way
   let px = Math.max(52, Math.min(W - 52, sx + (Math.random() - 0.5) * 18));
-  let py = Math.max(140, Math.min(H - 150, sy));
-  for (const q of pops) if (q.alive && q.t < 0.4 && Math.abs(q.y - py) < 34 && Math.abs(q.x - px) < 90) py = q.y - 36;
-  py = Math.max(130, py);
+  let py = Math.max(200, Math.min(H - 150, sy - dy));
+  for (const q of pops) if (q.alive && q.t < 0.45 && Math.abs(q.y - py) < 32 && Math.abs(q.x - px) < 96) py = q.y - 34;
+  py = Math.max(195, py);
   p.alive = true; p.t = 0; p.x = px; p.y = py; p.el.textContent = text; p.el.className = 'pp ' + cls; p.el.style.display = '';
 }
 export function updatePopups(dt) {
@@ -96,13 +96,15 @@ export function tickCombo(dt) { if (comboT > 0) { comboT -= dt; if (comboT <= 0)
 
 // ---------- set-piece objective ----------
 let objKey = '';
-export function setObjective(def, dist, dir) {
+export function setObjective(def, dist, dir, ready) {
   const el = $('objective');
-  if (!def) { if (objKey) { objKey = ''; el.classList.remove('on'); } return; }
+  if (!def) { if (objKey) { objKey = ''; el.classList.remove('on', 'ready'); } return; }
   if (def.id !== objKey) { objKey = def.id; el.querySelector('.ot').textContent = def.call; el.classList.add('on'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
-  el.querySelector('.od').textContent = Math.round(dist) + ' m';
+  el.querySelector('.od').textContent = Math.round(dist) + 'm';
   el.querySelector('.oa').style.transform = `rotate(${(dir * 180 / Math.PI).toFixed(1)}deg)`;
+  el.classList.toggle('ready', !!ready);
 }
+export function clearObjective() { objKey = ''; $('objective').classList.remove('on', 'ready', 'flash'); }
 export function banner(text, color = '#fff') {
   const el = $('banner'); el.textContent = text; el.style.color = color; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }

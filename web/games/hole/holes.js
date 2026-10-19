@@ -16,16 +16,17 @@ const TOP = CITY.CURB_H + 0.012;
 
 // ---- shared geometries
 const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 56, 6, true); wallGeo.translate(0, -0.5, 0);
-const rimProfile = [[0.978, -0.40], [0.988, 0.03], [1.0, 0.085], [1.035, 0.118], [1.11, 0.126], [1.17, 0.104], [1.20, 0.055], [1.21, -0.02], [1.21, -0.34]].reverse().map(p => new THREE.Vector2(p[0], p[1]));
+// A thinner, more solid lip: the fat pale donut washed the ground out (critic fix 7).
+const rimProfile = [[0.982, -0.40], [0.990, 0.03], [1.0, 0.078], [1.026, 0.105], [1.072, 0.112], [1.112, 0.092], [1.133, 0.048], [1.14, -0.02], [1.14, -0.34]].reverse().map(p => new THREE.Vector2(p[0], p[1]));
 const rimGeo = new THREE.LatheGeometry(rimProfile, 72);
-const AO_IN = 1.17, AO_OUT = 1.62;
+const AO_IN = 1.13, AO_OUT = 1.56;
 const aoGeo = new THREE.RingGeometry(AO_IN, AO_OUT, 64, 1); aoGeo.rotateX(-Math.PI / 2);
 const bottomGeo = new THREE.CircleGeometry(1, 32); bottomGeo.rotateX(-Math.PI / 2);
 
-const GLOW_IN = 0.99, GLOW_OUT = 1.34;
+const GLOW_IN = 1.06, GLOW_OUT = 1.40;
 const glowGeo = new THREE.RingGeometry(GLOW_IN, GLOW_OUT, 64, 1); glowGeo.rotateX(-Math.PI / 2);
 { const p = glowGeo.attributes.position, uv = glowGeo.attributes.uv; for (let i = 0; i < p.count; i++) { const rr = Math.hypot(p.getX(i), p.getZ(i)); uv.setXY(i, (rr - GLOW_IN) / (GLOW_OUT - GLOW_IN), 0.5); } }
-const xrayGeo = new THREE.RingGeometry(1.08, 1.16, 72, 1); xrayGeo.rotateX(-Math.PI / 2);
+const xrayGeo = new THREE.RingGeometry(1.15, 1.23, 72, 1); xrayGeo.rotateX(-Math.PI / 2);
 let GLOW_TEX = null;
 function glowTexture() {
   const c = document.createElement('canvas'); c.width = 256; c.height = 4; const g = c.getContext('2d');
@@ -51,22 +52,22 @@ function wallMaterial(color) {
     fragmentShader: `uniform vec3 uCol; uniform float uR; uniform float uTime; varying vec3 vP; varying vec3 vW;
       float h12(vec2 p){ vec3 q = fract(vec3(p.xyx)*.1031); q += dot(q, q.yzx+33.33); return fract((q.x+q.y)*q.z); }
       void main(){
-        float depth = -vW.y;
+        // Depth measured in hole radii, so the pit reads the same at LV1 and LV30. From a 45°
+        // camera the near lip hides everything past dn = 2, which is exactly where we reach black.
+        float dn = -vW.y / max(0.8, uR);
         float ang = atan(vP.z, vP.x);
-        // broken strata in the exposed collar (never a smooth tube)
-        float stri = 0.86 + 0.14*sin(ang*17.0 + depth*0.9) * (0.5 + 0.5*sin(ang*41.0 - depth*2.1));
-        float chunk = 0.88 + 0.12*h12(vec2(floor(ang*26.0), floor(depth*4.0)));
-        // 1) excavated earth collar immediately under the street
-        float collarH = 0.40 + uR*0.16;
-        float collar = smoothstep(collarH, 0.0, depth);
-        vec3 earth = mix(vec3(0.13,0.10,0.08), vec3(0.37,0.27,0.18), collar*collar);
-        vec3 c = earth * collar * stri * chunk;
-        // 2) below that it falls away to black very fast — a real abyss
-        float k = exp(-depth / (0.11 + uR*0.085));
-        c += uCol * 0.20 * k * stri;
+        // broken strata and torn chunks — never a smooth tube
+        float stri = 0.84 + 0.16*sin(ang*17.0 + dn*5.0) * (0.5 + 0.5*sin(ang*41.0 - dn*11.0));
+        float chunk = 0.86 + 0.14*h12(vec2(floor(ang*26.0), floor(dn*13.0)));
+        // 1) sunlit excavated earth at the top, losing light as it drops away
+        float lit = exp(-dn*1.22);
+        vec3 earth = mix(vec3(0.50,0.36,0.22), vec3(0.17,0.12,0.08), clamp(dn*0.72, 0.0, 1.0));
+        vec3 c = earth * lit * stri * chunk;
+        // 2) a little rim colour bounces onto the top of the shaft
+        c += uCol * 0.15 * exp(-dn*3.2) * stri;
         // 3) hard contact shadow just beneath the lip, then the bright lip itself
-        c *= 1.0 - 0.55 * smoothstep(0.015, 0.11, depth) * (1.0 - smoothstep(0.11, 0.46, depth));
-        c += uCol * 0.70 * smoothstep(0.075, 0.0, depth);
+        c *= 1.0 - 0.52 * smoothstep(0.0, 0.10, dn) * (1.0 - smoothstep(0.10, 0.44, dn));
+        c += uCol * 0.60 * smoothstep(0.055, 0.0, dn);
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -91,7 +92,7 @@ vec3 hue(float h){ return clamp(abs(mod(h*6.0+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.); 
   float topk = smoothstep(0.0, 0.1, vLP.y);
   vec3 c = uA; vec3 e = vec3(0.0);
   int st = int(uStyle + 0.5);
-  if (st == 0) { c = mix(uA, uB, topk * smoothstep(1.17, 1.02, rr) * 0.8); }
+  if (st == 0) { c = mix(uA, uB, topk * smoothstep(1.11, 1.02, rr) * 0.62); }
   else if (st == 1) { c = mix(uA, uB, 0.5 + 0.5*sin(ang*2.0 + t*0.8)); }
   else if (st == 2) { float p = 0.5 + 0.5*sin(ang*10.0 - t*4.0); c = mix(uA, uB, p*0.6); e = uA * 0.35 * (0.6 + 0.4*p); }
   else if (st == 3) { float s = step(0.5, fract(ang*12.0/6.2831 + t*0.25)); c = mix(uA, uB, s); }
@@ -100,7 +101,7 @@ vec3 hue(float h){ return clamp(abs(mod(h*6.0+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.); 
   else if (st == 6) { c = mix(uA, uB, 0.3 + 0.3*sin(ang*6.0 + t*1.5)); }
   else { c = hue(ang/6.2831 + t*0.12) * 0.9 + 0.08; e = c * 0.25; }
   diffuseColor.rgb = c;
-  totalEmissiveRadiance += e + c * 0.22;
+  totalEmissiveRadiance += e + c * 0.15;
 }
 `);
   };
@@ -131,7 +132,7 @@ export class Hole {
     this.ao.position.y = TOP + 0.002; this.ao.renderOrder = 2;
     this.group.add(this.wall, this.bottom, this.rim, this.ao);
     // glow halo on the ground (additive) and an x-ray outline visible through buildings
-    this.glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: o.skin.a, transparent: true, opacity: 0.14, alphaMap: GLOW_TEX, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    this.glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: o.skin.a, transparent: true, opacity: 0.09, alphaMap: GLOW_TEX, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
     this.glow.position.y = TOP + 0.004; this.glow.renderOrder = 3; this.group.add(this.glow);
     this.pulse = 0;   // halo only flares when the hole grows
     if (this.isPlayer) {
@@ -151,7 +152,7 @@ export class Hole {
     this.rim.scale.set(r, ys, r);
     this.ao.scale.set(r, 1, r);
     this.glow.scale.set(r * (1 + this.pulse * 0.10), 1, r * (1 + this.pulse * 0.10));
-    this.glow.material.opacity = 0.13 + this.pulse * 0.62;
+    this.glow.material.opacity = 0.085 + this.pulse * 0.55;
     if (this.xray) this.xray.scale.set(r, 1, r);
     this.group.visible = this.alive;
   }
@@ -195,23 +196,26 @@ function startFall(o, h, time) {
   o.lean = 0; leaning.delete(o);
   if (o.kind === 'person') { const p = o.parts[0]; p.pool.setAttr('aAnim', p.id, rand() * 6, 1, 9); }
   falling.add(o);
-  paintDamage(o.x, o.z, Math.max(1.4, o.size * 1.7), o.kind === 'building' ? 1 : 0.55);
+  // only a swallowed building leaves a real excavation; a bench just scuffs the paving
+  paintDamage(o.x, o.z, Math.max(1.4, o.size * 1.7), (o.kind === 'building' || o.kind === 'mega') ? 1 : 0.28);
   // scoring + growth
   if (time - h.lastEat < 0.75) h.combo++; else h.combo = 1;
   h.lastEat = time; h.bestCombo = Math.max(h.bestCombo, h.combo);
   const bonus = 1 + Math.min(h.combo, 30) * 0.04;
   const pts = Math.max(1, Math.round(o.value * bonus));
   h.score += pts; h.eaten++;
-  h.addMass(objectMass(o.size) * (h.isPlayer ? 1 : HOLE.BOT_GROW * (h.growMul ?? 1)));
+  h.addMass(objectMass(o.size) * (h.isPlayer ? 1 : HOLE.BOT_GROW) * (h.growMul ?? 1));
   events.push({ type: 'eat', hole: h, obj: o, pts });
 }
 
 export function updateHoles(dt, time) {
   // leaning targets reset
   for (const o of leaning) o.leanT = 0;
-  // rubber band: bots that are behind the leader feed faster, so the race stays live to the whistle
+  // Rubber band: whoever is behind the leader feeds faster — player included. Bots get no free
+  // growth any more (BOT_GROW 1.0), so the only edge anyone has is being behind, and the race
+  // stays live to the whistle instead of one hole snowballing away from the field.
   let topScore = 0; for (const h of holes) if (h.score > topScore) topScore = h.score;
-  for (const h of holes) h.growMul = h.isPlayer ? 1 : 1 + HOLE.BOT_RUBBER * Math.min(1, Math.max(0, (topScore - h.score) / Math.max(80, topScore)));
+  for (const h of holes) h.growMul = 1 + HOLE.BOT_RUBBER * Math.min(1, Math.max(0, (topScore - h.score) / Math.max(80, topScore)));
   for (const h of holes) {
     if (!h.alive) {
       h.respawnT -= dt;
@@ -221,7 +225,8 @@ export function updateHoles(dt, time) {
     h.invuln = Math.max(0, h.invuln - dt);
     h.pulse = Math.max(0, (h.pulse || 0) - dt * 1.9);
     h.dmgT = (h.dmgT || 0) - dt;
-    if (h.dmgT <= 0) { h.dmgT = 0.09; paintDamage(h.x, h.z, h.r * 1.1, 1); }
+    // the hole's own path only scuffs the surface; full excavation is reserved for swallowed buildings
+    if (h.dmgT <= 0) { h.dmgT = 0.09; paintDamage(h.x, h.z, h.r * 0.88, 0.42); }
     // movement
     const spd = HOLE.SPEED_BASE + HOLE.SPEED_PER_R * h.r;
     const tvx = h.input.x * spd, tvz = h.input.z * spd;
@@ -260,7 +265,7 @@ export function updateHoles(dt, time) {
     if (a.r > b.r * HOLE.EAT_HOLE_RATIO) {
       const d = Math.hypot(a.x - b.x, a.z - b.z);
       if (d < a.r - b.r * 0.35) {
-        b.alive = false; b.respawnT = 3.0; b.group.visible = false;
+        b.alive = false; b.respawnT = 3.0; b.group.visible = false; b.deaths = (b.deaths || 0) + 1;
         const pts = 40 + Math.round(b.score * 0.15);
         a.score += pts; a.holesEaten++; a.addMass(levelMass(b.level) * 1.5 + 3);
         events.push({ type: 'eatHole', hole: a, victim: b, pts });
@@ -323,7 +328,9 @@ function stepFall(o, dt) {
 }
 
 function respawn(h) {
-  h.alive = true; h.invuln = 3; h.level = Math.max(1, Math.round(h.level * 0.72)); h.mass = 0;
+  // Losing a hole costs you a fifth of your size, not the round. Combined with the catch-up band
+  // this keeps a swallowed player in the race instead of spiralling.
+  h.alive = true; h.invuln = 3.5; h.level = Math.max(3, Math.round(h.level * 0.8)); h.mass = 0;
   h.r = h.targetR = levelRadius(h.level);
   // find a spot away from big holes
   let best = null, bestD = -1;
@@ -348,7 +355,7 @@ export function updateOccluders(p, dt, pitchTan = 0.9) {
   if (p && p.alive) for (const o of _objs) {
     if (o.kind !== 'building' || o.state !== 0) continue;
     const dz = o.z - p.z, dx = Math.abs(o.x - p.x);
-    const occ = dx < o.size + p.r * 0.9 && dz > -o.size * 0.6 && dz < o.h / pitchTan + o.size;
+    const occ = dx < o.size + p.r * 0.45 && dz > -o.size * 0.6 && dz < o.h / pitchTan + o.size;
     if (occ) { o.fadeT = 1.0; fading.add(o); }
   }
   for (const o of fading) {
