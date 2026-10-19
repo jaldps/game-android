@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#7a9cc6}</style></head><body><canvas id="c"></canvas>
+<script type="module">
+import { Fighter } from '../rig.js';
+import { HEROES, BOWS } from '../data.js';
+const c = document.getElementById('c'), dpr = 2; c.width = innerWidth * dpr; c.height = innerHeight * dpr; c.style.width = innerWidth + 'px'; c.style.height = innerHeight + 'px';
+const x = c.getContext('2d'); x.scale(dpr, dpr);
+const modes = ['aim', 'idle', 'aim', 'victory', 'aim', 'idle', 'dead', 'aim', 'idle', 'aim'];
+const only=new URLSearchParams(location.search).get('one'); const list = only!=null? [HEROES[+only]] : HEROES;
+const fs = list.map((h, i) => { const f = new Fighter(h, BOWS[i % BOWS.length], i % 2 ? 1 : -1); f.x = 50 + (i % 5) * 180; f.y = i < 5 ? 190 : 380; f.mode = modes[i]; f.aim = 0.5; f.drawAmt = 0.8; f.aimBlend = 1; if (i === 3) { f.hitT = 0.2; } if (i === 8) f.dizzy = 2; f.update(0.016); return f; });
+if(fs.length>6){fs[1].hitT = 0.3; fs[6].mode = "dead";}
+for (let k = 0; k < 40; k++) fs.forEach(f => { f.update(1 / 60); if (f.mode === 'aim') { f.drawAmt = 0.8; } });
+if(fs.length>6){fs[1].hitT = 0.3; fs[5].hitT = 0.2;}
+const q=new URLSearchParams(location.search); const sc=+(q.get('s')||1.6); const off=+(q.get('o')||0); x.save(); x.scale(sc, sc); x.translate(30-off*180, only!=null?-20:-40);
+fs.forEach(f => f.draw(x));
+x.restore();
+</script></body></html>

@@ -1,0 +1,83 @@
+// Game content: heroes, bows, arenas, tower ladder.
+export const HEROES = [
+  { id: 'finn', name: 'Finn', title: 'Hooded Ranger', price: 0,
+    skin: '#f4c39a', head: { r: 25, shape: 'round' }, body: { w: 32, h: 42, belly: 0 }, legLen: 34,
+    shirt: '#2aa38f', shirt2: '#17695f', pants: '#4a3b2a', boot: '#6b3f22', belt: '#7a5232',
+    hair: { type: 'tuft', color: '#c8612b' }, beard: { type: 'none' }, hat: { type: 'hood', color: '#2f8f7c', color2: '#1c5c50' },
+    eyes: 'normal', freckles: true, nose: 1.0, cape: '#2f8f7c' },
+  { id: 'brun', name: 'Brunhild', title: 'Fjord Raider', price: 300,
+    skin: '#f6cfae', head: { r: 26, shape: 'round' }, body: { w: 40, h: 44, belly: 0.15 }, legLen: 32,
+    shirt: '#7d5a9e', shirt2: '#4b3466', pants: '#5a4634', boot: '#3e2a1d', belt: '#c9a24a',
+    hair: { type: 'braids', color: '#f2c94c' }, beard: { type: 'none' }, hat: { type: 'horned', color: '#a7b1bd', color2: '#efe4c8' },
+    eyes: 'normal', blush: true, nose: 0.9, lashes: true },
+  { id: 'pomp', name: 'Sir Pompadour', title: 'Knight of Nothing', price: 500,
+    skin: '#f1bf98', head: { r: 25, shape: 'oval' }, body: { w: 38, h: 46, belly: 0.25 }, legLen: 33,
+    shirt: '#b9c3cf', shirt2: '#7f8b99', pants: '#6f7a88', boot: '#4d5562', belt: '#b0342b', armor: true,
+    hair: { type: 'none' }, beard: { type: 'mustache', color: '#6b3a1f' }, hat: { type: 'knight', color: '#c7d0da', color2: '#d8342b' },
+    eyes: 'normal', nose: 1.25 },
+  { id: 'nonna', name: 'Nonna Gnocchi', title: 'Pasta Marksman', price: 700,
+    skin: '#f3c7a5', head: { r: 25, shape: 'round' }, body: { w: 38, h: 40, belly: 0.3 }, legLen: 28,
+    shirt: '#e85d5d', shirt2: '#f7f2ea', pants: '#3d3a4a', boot: '#2b2731', belt: '#f7f2ea', apron: true,
+    hair: { type: 'bun', color: '#d9d6df' }, beard: { type: 'none' }, hat: { type: 'toque', color: '#ffffff', color2: '#e6e2ef' },
+    eyes: 'glasses', blush: true, nose: 1.0, wrinkles: true },
+  { id: 'squawk', name: "Cap'n Squawk", title: 'Sky Pirate', price: 900,
+    skin: '#e6a47c', head: { r: 25, shape: 'square' }, body: { w: 38, h: 44, belly: 0.1 }, legLen: 34,
+    shirt: '#a3242c', shirt2: '#e9c46a', pants: '#2b2a3a', boot: '#1e1a22', belt: '#3a2a20',
+    hair: { type: 'none' }, beard: { type: 'full', color: '#2a1d1a' }, hat: { type: 'tricorn', color: '#26222e', color2: '#e9c46a' },
+    eyes: 'patch', nose: 1.15, parrot: true },
+  { id: 'kenji', name: 'Kenji', title: 'Wandering Ronin', price: 1200,
+    skin: '#efc49b', head: { r: 24, shape: 'oval' }, body: { w: 32, h: 44, belly: 0 }, legLen: 36,
+    shirt: '#2d3a6b', shirt2: '#e7e2d6', pants: '#1f2547', boot: '#d9cfbd', belt: '#b8322e',
+    hair: { type: 'topknot', color: '#1b1820' }, beard: { type: 'goatee', color: '#1b1820' }, hat: { type: 'headband', color: '#d8342b', color2: '#ffffff' },
+    eyes: 'narrow', nose: 0.85 },
+  { id: 'boom', name: 'Prof. Boom', title: 'Mad Inventor', price: 1500,
+    skin: '#f5d0b5', head: { r: 26, shape: 'round' }, body: { w: 34, h: 44, belly: 0.1 }, legLen: 33,
+    shirt: '#f4f6f8', shirt2: '#9fb2c4', pants: '#4a4f6a', boot: '#2d2f3d', belt: '#5a5f7a', coat: true,
+    hair: { type: 'wild', color: '#eef1f5' }, beard: { type: 'mustache', color: '#eef1f5' }, hat: { type: 'goggles', color: '#c58b3a', color2: '#7fe0ff' },
+    eyes: 'normal', nose: 1.1 },
+  { id: 'gobbo', name: 'Gobbo', title: 'Swamp Sniper', price: 1800,
+    skin: '#7fbf4d', head: { r: 25, shape: 'round' }, body: { w: 30, h: 38, belly: 0.2 }, legLen: 28,
+    shirt: '#8a5a35', shirt2: '#5c3a22', pants: '#4b3b2e', boot: '#3a2b20', belt: '#2e2218',
+    hair: { type: 'none' }, beard: { type: 'none' }, hat: { type: 'cap', color: '#6b4428', color2: '#3f2716' },
+    eyes: 'beady', nose: 1.5, ears: 'goblin', teeth: true },
+  { id: 'grum', name: 'King Grumbold', title: 'Very Royal', price: 2200,
+    skin: '#f2bf9a', head: { r: 27, shape: 'round' }, body: { w: 46, h: 46, belly: 0.5 }, legLen: 28,
+    shirt: '#6b3fa0', shirt2: '#f7f2ea', pants: '#3b2a5a', boot: '#2a1e3d', belt: '#e8b93a', robe: true,
+    hair: { type: 'side', color: '#9c5a2b' }, beard: { type: 'full', color: '#9c5a2b' }, hat: { type: 'crown', color: '#f2c230', color2: '#e0344a' },
+    eyes: 'normal', nose: 1.35, blush: true },
+  { id: 'yeti', name: 'Mo the Yeti', title: 'Abominably Nice', price: 3000,
+    skin: '#9fd3ef', fur: '#f3f7fb', head: { r: 28, shape: 'round' }, body: { w: 46, h: 48, belly: 0.35 }, legLen: 30,
+    shirt: '#f3f7fb', shirt2: '#cfe1ee', pants: '#e3eef6', boot: '#9fd3ef', belt: '#5a7da8', furry: true,
+    hair: { type: 'none' }, beard: { type: 'none' }, hat: { type: 'yetihorns', color: '#e9dfc8', color2: '#bfae8c' },
+    eyes: 'normal', nose: 1.1, teeth: true },
+];
+export const heroById = id => HEROES.find(h => h.id === id) || HEROES[0];
+
+export const BOWS = [
+  { id: 'twig', name: 'Twig Bow', price: 0, power: 1.0, dmg: 1.0, hint: 1.0, wood: '#9a6233', wood2: '#5e3a1c', wrap: '#e9d8b4', trail: '#ffffff', desc: 'Trusty. Bendy. Mostly wood.' },
+  { id: 'recurve', name: 'Recurve', price: 250, power: 1.04, dmg: 1.05, hint: 1.3, wood: '#6a3a2a', wood2: '#3a1d14', wrap: '#d8342b', trail: '#ffe1a8', desc: 'Longer aim guide.', recurve: true },
+  { id: 'long', name: 'Longbow', price: 500, power: 1.12, dmg: 1.05, hint: 1.1, wood: '#c08a4a', wood2: '#7a5226', wrap: '#2e6b4f', trail: '#d8ffe8', desc: 'Faster arrows, flatter arcs.', long: true },
+  { id: 'bone', name: 'Bonecrusher', price: 850, power: 1.0, dmg: 1.25, hint: 1.0, wood: '#eadfc8', wood2: '#a99a7c', wrap: '#4a3b55', trail: '#f3e9ff', desc: 'Hits like a falling piano.' },
+  { id: 'ember', name: 'Ember Bow', price: 1300, power: 1.08, dmg: 1.15, hint: 1.2, wood: '#a3282b', wood2: '#4e1014', wrap: '#ffb13b', trail: '#ff8a2b', desc: 'Leaves a fiery trail.', fire: true, recurve: true },
+  { id: 'storm', name: 'Storm Bow', price: 2000, power: 1.12, dmg: 1.2, hint: 1.45, wood: '#3d5bd9', wood2: '#1c2a6e', wrap: '#bff6ff', trail: '#9ff3ff', desc: 'Crackles with lightning.', storm: true, recurve: true },
+];
+export const bowById = id => BOWS.find(b => b.id === id) || BOWS[0];
+
+export const ARENA_IDS = ['cliffs', 'castle', 'neon', 'forest', 'mesa', 'frost'];
+
+// tower ladder: escalating opponents
+export const TOWER = [
+  { foe: 'gobbo', arena: 'cliffs', diff: 0.12, dist: 950 },
+  { foe: 'nonna', arena: 'forest', diff: 0.22, dist: 1050 },
+  { foe: 'pomp', arena: 'castle', diff: 0.32, dist: 1150 },
+  { foe: 'kenji', arena: 'mesa', diff: 0.42, dist: 1200, boss: true },
+  { foe: 'brun', arena: 'frost', diff: 0.5, dist: 1250 },
+  { foe: 'squawk', arena: 'neon', diff: 0.58, dist: 1300 },
+  { foe: 'boom', arena: 'cliffs', diff: 0.65, dist: 1350 },
+  { foe: 'grum', arena: 'castle', diff: 0.72, dist: 1400, boss: true },
+  { foe: 'finn', arena: 'forest', diff: 0.78, dist: 1450 },
+  { foe: 'gobbo', arena: 'neon', diff: 0.84, dist: 1500 },
+  { foe: 'kenji', arena: 'frost', diff: 0.9, dist: 1550 },
+  { foe: 'yeti', arena: 'mesa', diff: 0.96, dist: 1600, boss: true },
+];
+export const DIFFS = [{ name: 'Easy', v: 0.2 }, { name: 'Normal', v: 0.5 }, { name: 'Hard', v: 0.85 }];

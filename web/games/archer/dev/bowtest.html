@@ -1,0 +1,10 @@
+<!doctype html><html><body style="margin:0;background:#789"><canvas id="c" width="1830" height="824"></canvas>
+<script type="module">
+import { Fighter } from '../rig.js';
+import { HEROES, BOWS } from '../data.js';
+const q=new URLSearchParams(location.search); const hero=+(q.get('h')||0); const S=+(q.get('s')||2.2);
+const x = document.getElementById('c').getContext('2d');
+const aims=[[0.5,'aim'],[1.0,'aim'],[0,'idle'],[0.2,'victory']];
+aims.forEach(([a,m],i)=>{ const f=new Fighter(HEROES[(hero+i)%HEROES.length],BOWS[(hero+i)%BOWS.length],-1); f.setMode(m); f.aim=a; for(let k=0;k<30;k++){f.update(1/60); f.drawAmt=0.85;}
+ x.save(); x.translate(230+i*450,700); x.scale(S,S); f.draw(x); x.restore(); });
+</script></body></html>

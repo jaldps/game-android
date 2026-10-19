@@ -1,0 +1,6 @@
+r1p1: B better (dense lit city, plaza, HUD) vs sparse grey close-up
+r1p2: B better on art (detail/lighting), though A has the stronger moment (tower set-piece, hole fills frame)
+r1p3: B better (dense colourful city, hole gulping a block, objective callout) vs empty grass grid
+r1p4: B better (tower set-piece, abyss with depth, god rays, debris) vs empty grid
+r1p5: A better (close camera, hero building sinking, objective, cohesive palette) vs tiny hole in wide shot
+r1p6: B better (dense tilted city, hero tower, star-trail juice) vs empty grid

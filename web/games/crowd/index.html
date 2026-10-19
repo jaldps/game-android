@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Mob Rush</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../shared/fonts.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"../../lib/three.module.js","three/addons/":"../../lib/addons/"}}</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="ov"></canvas>
+<div id="touch"></div>
+<div id="joy"><div class="ring"></div><div class="knob"></div></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="topl">
+    <button id="btnPause" class="roundbtn" aria-label="Pause"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></button>
+    <div id="timer"><svg viewBox="0 0 24 24" class="clock"><circle cx="12" cy="13" r="8.5" fill="#fff" stroke="#1b2140" stroke-width="2.2"/><rect x="10" y="1.5" width="4" height="3" rx="1" fill="#1b2140"/><path d="M12 13 L12 8.2" stroke="#ff4d6d" stroke-width="2.4" stroke-linecap="round"/><path d="M12 13 L15.2 14.8" stroke="#1b2140" stroke-width="2.2" stroke-linecap="round"/></svg><span id="timeTxt">2:00</span></div>
+  </div>
+  <div id="kills"><svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.3 6.8.5-5.2 4.4 1.6 6.6L12 16.3 6.2 19.8l1.6-6.6L2.6 8.8l6.8-.5z" fill="#ffd23f" stroke="#1b2140" stroke-width="1.6" stroke-linejoin="round"/></svg><span id="killTxt">0</span></div>
+  <div id="board"></div>
+  <div id="mycount"><div class="ico"><svg viewBox="0 0 32 24"><g fill="#fff" stroke="#1b2140" stroke-width="1.6"><circle cx="9" cy="6" r="3.6"/><path d="M3 21c0-5 2.6-8 6-8s6 3 6 8z"/><circle cx="23" cy="6" r="3.6"/><path d="M17 21c0-5 2.6-8 6-8s6 3 6 8z"/><circle cx="16" cy="8" r="4.2"/><path d="M9 23c0-6 3-9 7-9s7 3 7 9z"/></g></svg></div><div class="num" id="countTxt">1</div><div class="rk" id="rankTxt">#1</div></div>
+  <div id="banner"></div>
+  <div id="feed"></div>
+  <div id="milestone"></div>
+  <div id="hint"><div class="hand"><svg viewBox="0 0 64 64"><path d="M26 30V12a4 4 0 0 1 8 0v14l10 2a5 5 0 0 1 4 5.6L46 50a6 6 0 0 1-6 5H30a6 6 0 0 1-4.8-2.4L16 40a3.6 3.6 0 0 1 5.4-4.7L26 40z" fill="#fff" stroke="#1b2140" stroke-width="3" stroke-linejoin="round"/></svg></div><div class="txt">DRAG TO LEAD YOUR MOB</div><div class="sub">Touch grey people to recruit them</div></div>
+  <div id="count"></div>
+  <div id="dead" class="hidden"><div class="t1">ABSORBED!</div><div class="t2" id="deadBy"></div></div>
+</div>
+
+<!-- MENU -->
+<div id="menu" class="screen hidden">
+  <div class="topbar">
+    <button id="btnHome" class="roundbtn" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M12 3.2 2.8 11a1 1 0 0 0 .7 1.8H5v7a1 1 0 0 0 1 1h4v-5h4v5h4a1 1 0 0 0 1-1v-7h1.5a1 1 0 0 0 .7-1.8z"/></svg></button>
+    <button id="btnSettings" class="roundbtn" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.9 4.9-.9-.5a7.9 7.9 0 0 0 0-1.8l.9-.5a1 1 0 0 0 .4-1.3l-1.3-2.3a1 1 0 0 0-1.3-.4l-.9.5a7.8 7.8 0 0 0-1.6-.9V5.3a1 1 0 0 0-1-1h-2.6a1 1 0 0 0-1 1v1a7.8 7.8 0 0 0-1.6.9l-.9-.5a1 1 0 0 0-1.3.4L4.7 9.4a1 1 0 0 0 .4 1.3l.9.5a7.9 7.9 0 0 0 0 1.8l-.9.5a1 1 0 0 0-.4 1.3L6 17.1a1 1 0 0 0 1.3.4l.9-.5c.5.4 1 .7 1.6.9v1a1 1 0 0 0 1 1h2.6a1 1 0 0 0 1-1v-1c.6-.2 1.1-.5 1.6-.9l.9.5a1 1 0 0 0 1.3-.4l1.3-2.3a1 1 0 0 0-.4-1.3z"/></svg></button>
+    <div class="coins"><span class="coin"></span><span class="coinTxt">0</span></div>
+  </div>
+  <div class="logo">
+    <div class="l1"><span>M</span><span>O</span><span>B</span></div>
+    <div class="l2">RUSH</div>
+    <div class="tag">Grow the biggest crowd in town!</div>
+  </div>
+  <div class="menuBottom">
+    <div class="citysel">
+      <button id="cityPrev" class="arrow" aria-label="Previous city"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="#1b2140" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="card"><div class="cname" id="cityName">Pastel Bay</div><div class="cinfo" id="cityInfo">7 rivals</div></div>
+      <button id="cityNext" class="arrow" aria-label="Next city"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="#1b2140" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <button id="btnPlay" class="bigbtn yellow">PLAY</button>
+    <div class="row">
+      <button id="btnSkins" class="bigbtn blue small"><svg viewBox="0 0 24 24" class="bi"><path d="M8 3l-5 3 2 5 2-1v11h10V10l2 1 2-5-5-3c-.5 1.7-2 3-4 3S8.5 4.7 8 3z" fill="#fff" stroke="#123" stroke-width="1.2" stroke-linejoin="round"/></svg>STYLE</button>
+      <div class="best">BEST<b id="bestTxt">0</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- SKINS -->
+<div id="skins" class="screen hidden">
+  <div class="panel">
+    <div class="phead"><span>STYLE</span><div class="coins"><span class="coin"></span><span class="coinTxt">0</span></div></div>
+    <div class="tabs"><button id="tabCol" class="tab on">COLORS</button><button id="tabHat" class="tab">HATS</button></div>
+    <div id="skinGrid"></div>
+    <button id="btnSkinsBack" class="bigbtn yellow small">DONE</button>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div id="pause" class="screen hidden">
+  <div class="panel narrow">
+    <div class="phead center"><span id="pauseTitle">PAUSED</span></div>
+    <button id="btnResume" class="bigbtn yellow small">RESUME</button>
+    <button id="btnSound" class="bigbtn blue small">SOUND: ON</button>
+    <button id="btnQuality" class="bigbtn blue small">QUALITY: HIGH</button>
+    <button id="btnQuit" class="bigbtn red small">QUIT TO MENU</button>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="over" class="screen hidden">
+  <div class="panel results">
+    <div class="rhead" id="overHead">TIME'S UP!</div>
+    <div class="medal" id="medal"></div>
+    <div class="rank"><div id="rRank">#1</div><div id="rSub">CHAMPION!</div></div>
+    <div class="stars"><span class="star" id="st1"></span><span class="star" id="st2"></span><span class="star" id="st3"></span></div>
+    <div id="standings"></div>
+    <div class="stats">
+      <div><b id="rsCrowd">0</b><span>CROWD</span></div>
+      <div><b id="rsMax">0</b><span>PEAK</span></div>
+      <div><b id="rsRec">0</b><span>RECRUITED</span></div>
+      <div><b id="rsKills">0</b><span>KOs</span></div>
+    </div>
+    <div class="earn"><span class="coin"></span>+<b id="rsCoins">0</b></div>
+    <div id="nextUnlock"></div>
+    <div class="row">
+      <button id="btnMenu2" class="bigbtn blue small">HOME</button>
+      <button id="btnAgain" class="bigbtn yellow small">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<div id="fade"></div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

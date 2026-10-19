@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Murmur</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../shared/fonts.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"../../lib/three.module.js","three/addons/":"../../lib/addons/"}}</script>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="touch"></div>
+<div id="popups"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <button id="btnPause" class="iconbtn" aria-label="Pause"><svg viewBox="0 0 24 24"><rect x="7" y="5.5" width="3.2" height="13" rx="1.2"/><rect x="13.8" y="5.5" width="3.2" height="13" rx="1.2"/></svg></button>
+  <div id="legbar">
+    <div id="legName"><span id="legRoman">I</span><span class="dot">·</span><span id="legTitle">Dawn Dunes</span></div>
+    <div id="legTrack"><i></i><i></i><i></i><i></i><i></i><b id="legFill"></b><em id="legDot"></em></div>
+  </div>
+  <div id="scorebox">
+    <div id="scoreTxt">0</div>
+    <div id="flockRow"><svg viewBox="0 0 32 20" class="birdico"><path d="M31 6c-3 0-5 1-7 3-2-5-6-8-11-8 3 2 5 5 5 8-3-2-8-3-12-1 3 0 6 2 7 4-3 1-6 3-8 6 6-1 11-2 15-5 4 1 8 0 11-7z"/></svg><span id="flockTxt">24</span><span id="multTxt" class="mult">×1</span></div>
+  </div>
+  <div id="banner"><div class="r" id="bnRoman"></div><div class="n" id="bnName"></div><div class="s" id="bnSub"></div></div>
+  <div id="hint"><div class="ico" id="hintIco"></div><div class="txt" id="hintTxt"></div></div>
+</div>
+
+<!-- MENU -->
+<div id="menu" class="screen hidden">
+  <div class="mtop">
+    <button id="btnHome" class="iconbtn" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M12 3.6 3.4 11a.9.9 0 0 0 .6 1.6H6v6.6c0 .5.4.9.9.9h3.6v-5h3v5h3.6c.5 0 .9-.4.9-.9v-6.6h2a.9.9 0 0 0 .6-1.6z"/></svg></button>
+    <button id="btnSettings" class="iconbtn" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm8.6 4.8-1-.6a7.6 7.6 0 0 0 0-1.6l1-.6a.9.9 0 0 0 .3-1.2l-1.2-2.1a.9.9 0 0 0-1.2-.3l-1 .5a7.6 7.6 0 0 0-1.4-.8V5.6a.9.9 0 0 0-.9-.9h-2.4a.9.9 0 0 0-.9.9v1.1c-.5.2-1 .5-1.4.8l-1-.5a.9.9 0 0 0-1.2.3L5.1 9.4a.9.9 0 0 0 .3 1.2l1 .6a7.6 7.6 0 0 0 0 1.6l-1 .6a.9.9 0 0 0-.3 1.2l1.2 2.1c.2.4.8.6 1.2.3l1-.5c.4.3.9.6 1.4.8v1.1c0 .5.4.9.9.9h2.4c.5 0 .9-.4.9-.9v-1.1c.5-.2 1-.5 1.4-.8l1 .5c.4.3 1 .1 1.2-.3l1.2-2.1a.9.9 0 0 0-.3-1.2z"/></svg></button>
+    <div class="light"><span class="mote"></span><span id="lightTxt">0</span></div>
+  </div>
+  <div class="mleft">
+    <div class="logo" id="logo"><span>M</span><span>U</span><span>R</span><span>M</span><span>U</span><span>R</span></div>
+    <div class="tagline">a migration through five skies</div>
+    <button id="btnPlay" class="playbtn"><span>FLY</span></button>
+    <div class="best">BEST <b id="bestTxt">0</b></div>
+  </div>
+  <div class="mright">
+    <div class="sectlbl">START FROM</div>
+    <div id="legCards"></div>
+    <button id="btnSpecies" class="ghostbtn"><svg viewBox="0 0 32 20" class="birdico"><path d="M31 6c-3 0-5 1-7 3-2-5-6-8-11-8 3 2 5 5 5 8-3-2-8-3-12-1 3 0 6 2 7 4-3 1-6 3-8 6 6-1 11-2 15-5 4 1 8 0 11-7z"/></svg><span id="speciesName">Starlings</span></button>
+  </div>
+</div>
+
+<!-- SPECIES -->
+<div id="species" class="screen hidden">
+  <div class="panel wide">
+    <div class="phead">YOUR FLOCK</div>
+    <div id="speciesGrid"></div>
+    <button id="btnSpeciesBack" class="playbtn small"><span>DONE</span></button>
+  </div>
+</div>
+
+<!-- PAUSE / SETTINGS -->
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <div class="phead" id="pauseTitle">PAUSED</div>
+    <button id="btnResume" class="playbtn small"><span>RESUME</span></button>
+    <div class="toggles">
+      <button class="tog" id="tSound"><span>Sound</span><b></b></button>
+      <button class="tog" id="tMusic"><span>Music</span><b></b></button>
+      <button class="tog" id="tHaptics"><span>Haptics</span><b></b></button>
+      <button class="tog" id="tQuality"><span>High quality</span><b></b></button>
+    </div>
+    <button id="btnQuit" class="ghostbtn center">Quit to title</button>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="over" class="screen hidden">
+  <div class="panel results">
+    <div class="rkicker" id="rKicker">THE FLOCK RESTS</div>
+    <div class="rleg" id="rLeg">Reached II · Amber Canyon</div>
+    <div class="stars"><i id="st1"></i><i id="st2"></i><i id="st3"></i></div>
+    <div class="rscore" id="rScore">0</div>
+    <div class="newbest hidden" id="rNew">NEW BEST</div>
+    <div class="rstats">
+      <div><b id="rsDist">0</b><span>distance</span></div>
+      <div><b id="rsLight">0</b><span>light</span></div>
+      <div><b id="rsStrays">0</b><span>strays joined</span></div>
+      <div><b id="rsMax">0</b><span>largest flock</span></div>
+      <div><b id="rsThread">0</b><span>perfect threads</span></div>
+      <div><b id="rsHawk">0</b><span>hawks deterred</span></div>
+    </div>
+    <div class="unlock hidden" id="rUnlock"></div>
+    <div class="rbtns">
+      <button id="btnMenu2" class="ghostbtn">Title</button>
+      <button id="btnAgain" class="playbtn small"><span>FLY AGAIN</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="fade"></div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

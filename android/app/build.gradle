@@ -1,0 +1,10 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'com.clearplay.arcade'
+  compileSdk 35
+  defaultConfig { applicationId 'com.clearplay.arcade'; minSdk 26; targetSdk 35; versionCode 1; versionName '1.0' }
+  sourceSets { main { assets.srcDirs = ['../../web'] } }
+  aaptOptions { noCompress 'js','html','css','json','png','jpg','webp','ogg','mp3','glb','bin' }
+  buildTypes { release { minifyEnabled false; signingConfig signingConfigs.debug } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
