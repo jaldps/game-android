@@ -117,12 +117,12 @@ function pPagoda(c, x, y, s, k, t, glow) {
   pRect(c, x - 0.12 * s, yy - 2.5 * s, 0.24 * s, 2.6 * s);
 }
 function pWindmill(c, x, y, s, k, t) {
-  const h = (8 + k * 4) * s;
-  // stone tower with a cap
-  c.moveTo(x - 1.9 * s, y); c.lineTo(x - 1.0 * s, y - h); c.lineTo(x + 1.0 * s, y - h); c.lineTo(x + 1.9 * s, y); c.closePath();
-  c.moveTo(x - 1.5 * s, y - h); c.quadraticCurveTo(x, y - h - 2.1 * s, x + 1.5 * s, y - h); c.closePath();
+  const h = (5.5 + k * 2.6) * s;
+  // squat stone tower with a domed cap — a windmill, not a ship's mast
+  c.moveTo(x - 2.9 * s, y); c.lineTo(x - 1.5 * s, y - h); c.lineTo(x + 1.5 * s, y - h); c.lineTo(x + 2.9 * s, y); c.closePath();
+  c.moveTo(x - 2.0 * s, y - h); c.quadraticCurveTo(x, y - h - 2.6 * s, x + 2.0 * s, y - h); c.closePath();
   // four solid sails, each a tapered blade with a spine — reads cleanly at any size
-  const a0 = t * (0.5 + k * 0.4), cx = x, cy = y - h - 0.3 * s, L = (5 + k * 1.6) * s, W0 = 1.25 * s;
+  const a0 = t * (0.5 + k * 0.4), cx = x, cy = y - h - 0.6 * s, L = (4.4 + k * 1.3) * s, W0 = 2.0 * s;
   for (let j = 0; j < 4; j++) {
     const a = a0 + j * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
     const r0 = 0.7 * s;

@@ -24,6 +24,7 @@
   <div id="board"></div>
   <div id="myscore"><div class="lbl">SCORE</div><div id="scoreTxt">0</div></div>
   <div id="sizebar"><div class="ringwrap"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="bg"/><circle cx="22" cy="22" r="18" class="fg" id="sizeArc"/></svg><span id="lvlTxt">1</span></div><div class="sizelbl">SIZE</div></div>
+  <div id="objective"><span class="oa"><svg viewBox="0 0 24 24"><path d="M12 2.5 3.5 20.5 12 16.2l8.5 4.3z"/></svg></span><span class="ot"></span><span class="od"></span></div>
   <div id="combo"></div>
   <div id="banner"></div>
   <div id="feed"></div>
@@ -45,10 +46,12 @@
     <div class="tag">Swallow everything. Grow. Rule the streets.</div>
   </div>
   <div class="menuBottom">
-    <div class="best">BEST <b id="bestTxt">0</b></div>
+    <div id="mnGoals" class="goals"></div>
+    <div class="best">BEST <b id="bestTxt">0</b> <span class="mapchip" id="mapChip">HARBOR CITY</span></div>
     <button id="btnPlay" class="bigbtn yellow">PLAY</button>
     <div class="row">
       <button id="btnSkins" class="bigbtn blue small"><span class="ico"></span>SKINS</button>
+      <button id="btnMaps" class="bigbtn blue small"><span class="ico map"></span>MAPS</button>
     </div>
   </div>
 </div>
@@ -59,6 +62,15 @@
     <div class="phead"><span>HOLE SKINS</span><div class="coins"><span class="coin"></span><span class="coinTxt">0</span></div></div>
     <div id="skinGrid"></div>
     <button id="btnSkinsBack" class="bigbtn yellow small">DONE</button>
+  </div>
+</div>
+
+<!-- MAPS -->
+<div id="maps" class="screen hidden">
+  <div class="panel">
+    <div class="phead"><span>MAPS</span><div class="coins"><span class="coin"></span><span class="coinTxt">0</span></div></div>
+    <div id="mapGrid"></div>
+    <button id="btnMapsBack" class="bigbtn yellow small">DONE</button>
   </div>
 </div>
 
@@ -83,10 +95,11 @@
     <div class="stats">
       <div><b id="rsScore">0</b><span>SCORE</span></div>
       <div><b id="rsEaten">0</b><span>SWALLOWED</span></div>
-      <div><b id="rsHoles">0</b><span>HOLES</span></div>
+      <div><b id="rsHoles">0</b><span>SET-PIECES</span></div>
       <div><b id="rsSize">0</b><span>MAX SIZE</span></div>
     </div>
     <div class="earn"><span class="coin"></span>+<b id="rsCoins">0</b></div>
+    <div id="rsGoals" class="goals"></div>
     <div id="nextSkin"></div>
     <div class="row">
       <button id="btnMenu2" class="bigbtn blue small">HOME</button>

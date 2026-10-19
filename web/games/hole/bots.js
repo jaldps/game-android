@@ -39,16 +39,21 @@ export function updateBrain(h, dt, time) {
 }
 
 function decide(h, b) {
-  // 1) chase a smaller hole nearby
+  // 1) chase a smaller hole nearby — and hunt the player specifically, from much further out
   let bestHole = null, bestHD = 1e9;
   for (const o of holes) {
     if (o === h || !o.alive || o.invuln > 0) continue;
     if (h.r > o.r * HOLE.EAT_HOLE_RATIO * 1.03) {
       const d = Math.hypot(o.x - h.x, o.z - h.z);
-      if (d < 8 + h.r * 1.6 * b.skill && d < bestHD) { bestHD = d; bestHole = o; }
+      const reach = (8 + h.r * 2.6 * b.skill) * (o.isPlayer ? 2.4 : 1);
+      const score = d / (o.isPlayer ? 2.6 : 1);
+      if (d < reach && score < bestHD) { bestHD = score; bestHole = o; }
     }
   }
-  if (bestHole && rand() < 0.3 + b.skill * 0.4) { b.tx = bestHole.x + bestHole.vx * 0.4; b.tz = bestHole.z + bestHole.vz * 0.4; return; }
+  if (bestHole && rand() < (bestHole.isPlayer ? 0.78 : 0.3 + b.skill * 0.4)) {
+    const lead = bestHole.isPlayer ? 0.8 : 0.4;
+    b.tx = bestHole.x + bestHole.vx * lead; b.tz = bestHole.z + bestHole.vz * lead; return;
+  }
   // 2) best food cluster within reach
   const R = 12 + h.r * 3.2;
   gridQuery(h.x, h.z, R, _q);

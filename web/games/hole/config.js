@@ -8,7 +8,7 @@ export const CITY = {
   ROAD: 9,       // road width
   WALK: 3.2,     // sidewalk width inside a block
   CURB_H: 0.16,  // block raised height
-  BORDER: 26,    // outer district ring (esplanade + landmark towers + set-pieces)
+  BORDER: 40,    // outer district ring (esplanade + landmark towers + set-pieces)
 };
 CITY.PITCH = CITY.BLOCK + CITY.ROAD;
 CITY.SPAN = CITY.NX * CITY.PITCH + CITY.ROAD;          // road-to-road extent

@@ -1,7 +1,8 @@
 // DOM HUD: hole labels, score popups, leaderboard, timer, combo, banners, results, skins.
 import * as THREE from 'three';
-import { SKINS, levelRadius } from './config.js';
-import { store } from './store.js';
+import { SKINS, levelRadius, comboTier } from './config.js';
+import { store, GOAL_DEFS, dailyGoals, goalLevelProgress } from './store.js';
+import { THEMES } from './config.js';
 
 const $ = id => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -22,7 +23,8 @@ export function updateLabels(holes, cam, leader) {
     let el = labels.get(h);
     if (!el) {
       el = document.createElement('div'); el.className = 'hl' + (h.isPlayer ? ' me' : '');
-      el.innerHTML = `<div class="crown"></div><div class="lv"></div><div class="nm"></div>`;
+      // one compact pill instead of a three-storey stack
+      el.innerHTML = `<div class="pill"><i class="crown"></i><b class="lv"></b><span class="nm"></span></div>`;
       el.querySelector('.nm').textContent = h.name; $('labels').appendChild(el); labels.set(h, el);
       el._lv = el.querySelector('.lv'); el._lvv = -1;
     }
@@ -41,7 +43,12 @@ export function popup(text, x, y, z, cam, cls = '') {
   const [sx, sy] = project(x, y, z, cam);
   let p = pops.find(q => !q.alive);
   if (!p) { if (pops.length > 40) return; const el = document.createElement('div'); el.className = 'pp'; $('popups').appendChild(el); p = { el, alive: false }; pops.push(p); }
-  p.alive = true; p.t = 0; p.x = sx + (Math.random() - 0.5) * 30; p.y = sy; p.el.textContent = text; p.el.className = 'pp ' + cls; p.el.style.display = '';
+  // keep popups on screen and out of each other's way
+  let px = Math.max(52, Math.min(W - 52, sx + (Math.random() - 0.5) * 18));
+  let py = Math.max(140, Math.min(H - 150, sy));
+  for (const q of pops) if (q.alive && q.t < 0.4 && Math.abs(q.y - py) < 34 && Math.abs(q.x - px) < 90) py = q.y - 36;
+  py = Math.max(130, py);
+  p.alive = true; p.t = 0; p.x = px; p.y = py; p.el.textContent = text; p.el.className = 'pp ' + cls; p.el.style.display = '';
 }
 export function updatePopups(dt) {
   for (const p of pops) {
@@ -76,9 +83,26 @@ let lastScore = -1;
 export function setScore(n) { if (n === lastScore) return; lastScore = n; const el = $('scoreTxt'); el.textContent = fmt(n); el.style.transform = 'scale(1.18)'; clearTimeout(el._t); el._t = setTimeout(() => el.style.transform = '', 90); }
 export function setSize(level, prog) { $('lvlTxt').textContent = level; $('sizeArc').style.strokeDashoffset = (113.1 * (1 - prog)).toFixed(1); }
 
-let comboT = 0;
-export function showCombo(n) { const el = $('combo'); el.innerHTML = `COMBO <b>x${n}</b>`; el.classList.add('on'); el.style.opacity = '1'; comboT = 0.9; }
-export function tickCombo(dt) { if (comboT > 0) { comboT -= dt; if (comboT <= 0) { const el = $('combo'); el.classList.remove('on'); } } }
+let comboT = 0, comboKey = '';
+export function showCombo(n) {
+  const t = comboTier(n); if (!t) return;
+  const key = t.name;
+  const el = $('combo');
+  el.innerHTML = `<b style="color:${t.col}">${t.name}</b><span>x${Math.min(n, 99)}</span>`;
+  if (key !== comboKey) { comboKey = key; el.classList.remove('on'); void el.offsetWidth; }
+  el.classList.add('on'); el.style.opacity = '1'; comboT = 1.0;
+}
+export function tickCombo(dt) { if (comboT > 0) { comboT -= dt; if (comboT <= 0) { const el = $('combo'); el.classList.remove('on'); comboKey = ''; } } }
+
+// ---------- set-piece objective ----------
+let objKey = '';
+export function setObjective(def, dist, dir) {
+  const el = $('objective');
+  if (!def) { if (objKey) { objKey = ''; el.classList.remove('on'); } return; }
+  if (def.id !== objKey) { objKey = def.id; el.querySelector('.ot').textContent = def.call; el.classList.add('on'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  el.querySelector('.od').textContent = Math.round(dist) + ' m';
+  el.querySelector('.oa').style.transform = `rotate(${(dir * 180 / Math.PI).toFixed(1)}deg)`;
+}
 export function banner(text, color = '#fff') {
   const el = $('banner'); el.textContent = text; el.style.color = color; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
@@ -119,8 +143,40 @@ export function renderSkins(onPick) {
   }
 }
 
+// ---------- maps ----------
+export const MAP_PRICE = { harbor: 0, sunset: 900, spring: 2200 };
+export function renderMaps(onPick) {
+  const g = $('mapGrid'); g.innerHTML = '';
+  const owned = store.maps, cur = store.map;
+  for (const t of THEMES) {
+    const own = owned.includes(t.id), price = MAP_PRICE[t.id] || 0;
+    const afford = store.coins >= price;
+    const d = document.createElement('div');
+    d.className = 'mp' + (t.id === cur ? ' sel' : '') + (own ? '' : afford ? ' afford' : ' locked');
+    const sk = t.sky, c = v => `rgb(${Math.round(v[0] * 255)},${Math.round(v[1] * 255)},${Math.round(v[2] * 255)})`;
+    d.innerHTML = `<div class="pv" style="background:linear-gradient(${c(sk.top)},${c(sk.hor)} 58%,${c(t.grass[1])} 58%,${c(t.grass[0])})"></div>` +
+      `<div class="nm">${t.name}</div><div class="sb">${t.sub}</div>` +
+      (t.id === cur ? `<div class="eq">SELECTED</div>` : own ? `<div class="eq" style="background:#8fd0ff">PLAY</div>` : `<div class="pr"><span class="coin"></span>${price}</div>`);
+    d.onclick = () => onPick(t, price, own);
+    g.appendChild(d);
+  }
+}
+
+// ---------- daily goals ----------
+export function renderGoals(where) {
+  const el = $(where); if (!el) return;
+  const g = dailyGoals();
+  const lv = goalLevelProgress();
+  el.innerHTML = `<div class="gh"><span>DAILY GOALS</span><span class="lv">LV ${lv.level}<i><u style="width:${(lv.pct * 100).toFixed(0)}%"></u></i></span></div>` +
+    GOAL_DEFS.map(d => {
+      const p = Math.min(d.target, g.p[d.id] || 0), done = g.done[d.id];
+      return `<div class="go${done ? ' done' : ''}"><span class="tk"></span><span class="tx">${d.text.replace('{t}', d.target)}</span>` +
+        `<span class="pg">${done ? 'DONE' : p + '/' + d.target}</span><i style="width:${(p / d.target * 100).toFixed(0)}%"></i></div>`;
+    }).join('');
+}
+
 // ---------- results ----------
-export function showResults(sorted, player, coins, onDone) {
+export function showResults(sorted, player, coins, balance, onDone) {
   const rank = sorted.indexOf(player) + 1;
   $('rankTxt').textContent = '#' + rank;
   $('rankSub').textContent = rank === 1 ? 'CHAMPION!' : rank <= 3 ? 'PODIUM!' : rank <= 5 ? 'NICE ROUND!' : 'KEEP GROWING!';
@@ -131,16 +187,26 @@ export function showResults(sorted, player, coins, onDone) {
     const i = sorted.indexOf(h);
     return `<div class="r${h === player ? ' me' : ''}"><span class="n">${i + 1}</span><span class="d" style="background:${h.color}"></span><span class="nm">${h.name}</span><span class="sc">${h.score}</span></div>`;
   }).join('');
-  $('rsScore').textContent = player.score; $('rsEaten').textContent = player.eaten; $('rsHoles').textContent = player.holesEaten; $('rsSize').textContent = player.maxLevel;
+  $('rsScore').textContent = player.score; $('rsEaten').textContent = player.eaten; $('rsHoles').textContent = player.megas || 0; $('rsSize').textContent = player.maxLevel;
   // coin count-up
   const el = $('rsCoins'); let c = 0; const step = Math.max(1, Math.ceil(coins / 30));
   clearInterval(el._t); el.textContent = '0';
   el._t = setInterval(() => { c = Math.min(coins, c + step); el.textContent = c; onDone && onDone(c === coins); if (c >= coins) clearInterval(el._t); }, 40);
-  // next skin progress
-  const owned = store.owned; const next = SKINS.find(s => !owned.includes(s.id));
+  // next unlock progress — always read from the balance the player actually has after this round
+  const owned = store.owned, ownedMaps = store.maps;
+  const nextSkin = SKINS.find(s => !owned.includes(s.id));
+  const nextMap = THEMES.find(t => !ownedMaps.includes(t.id));
+  const have = balance;
+  let next = null;
+  if (nextSkin && nextMap) next = (MAP_PRICE[nextMap.id] <= nextSkin.price) ? { name: nextMap.name + ' map', price: MAP_PRICE[nextMap.id], where: 'MAPS' } : { name: nextSkin.name + ' skin', price: nextSkin.price, where: 'SKINS' };
+  else if (nextSkin) next = { name: nextSkin.name + ' skin', price: nextSkin.price, where: 'SKINS' };
+  else if (nextMap) next = { name: nextMap.name + ' map', price: MAP_PRICE[nextMap.id], where: 'MAPS' };
   if (next) {
-    const have = store.coins; const pct = Math.min(100, have / next.price * 100);
-    $('nextSkin').innerHTML = have >= next.price ? `<span style="color:#ffd84a">${next.name} skin is ready to unlock in SKINS!</span><div class="bar"><i style="width:100%"></i></div>` : `Next skin: <b>${next.name}</b> — ${have}/${next.price}<div class="bar"><i style="width:${pct}%"></i></div>`;
-  } else $('nextSkin').textContent = 'All skins unlocked — legend!';
+    const pct = Math.min(100, have / next.price * 100);
+    $('nextSkin').innerHTML = have >= next.price
+      ? `<span style="color:#ffd84a">${next.name} is ready to unlock in ${next.where}!</span><div class="bar"><i style="width:100%"></i></div>`
+      : `Next unlock: <b>${next.name}</b> — ${have}/${next.price}<div class="bar"><i style="width:${pct}%"></i></div>`;
+  } else $('nextSkin').textContent = 'Everything unlocked — legend!';
+  renderGoals('rsGoals');
   return rank;
 }

@@ -173,20 +173,20 @@ vec3 promenade(vec2 p, out float rough){
     w *= 0.86 + 0.14*smoothstep(0.0, 0.08, min(plank, 1.0-plank));
     w *= 0.93 + 0.1*vnoise(vec2(along*0.6, across*8.0));
     c = w; rough = 0.75;
-  } else if (e < 10.5) {                                  // promenade pavers with a banded inlay
+  } else if (e < 11.0) {                                  // promenade pavers with a banded inlay
     c = pavers(p, 1.4, vec3(0.86,0.80,0.70), vec3(0.93,0.88,0.78), 0.06);
     float inlay = band(e, 7.2, 8.0);
     c = mix(c, vec3(0.72,0.47,0.36)*(0.92+0.1*vnoise(p*3.0)), inlay);
     float seat = band(fract(along/7.0), 0.0, 0.1) * band(e, 5.6, 6.6);
     c = mix(c, vec3(0.78,0.74,0.68), seat*0.7);
     rough = 0.8;
-  } else if (e < 17.2) {                                  // green belt + jogging loop
+  } else if (e < 18.0) {                                  // green belt + jogging loop
     c = grassCol(p*0.9 + 41.0);
     float trk = band(e, 13.0, 14.4);
     vec3 track = vec3(0.74,0.42,0.33)*(0.92+0.1*vnoise(p*5.0));
     c *= 1.0 - 0.2*(band(e, 12.6, 13.0) + band(e, 14.4, 14.8));
     c = mix(c, track, trk);
-    float hedge = band(e, 10.5, 11.1);
+    float hedge = band(e, 11.0, 11.6);
     c = mix(c, uGrassA*0.78, hedge*0.85);
     rough = 1.0;
   } else {                                                // civic plaza: large stone tiles + tree pits
@@ -201,7 +201,7 @@ vec3 promenade(vec2 p, out float rough){
     pit *= step(0.5, mod(id.x+id.y, 2.0)) * step(0.55, h);
     c = mix(c, vec3(0.40,0.31,0.22)*(0.9+0.15*vnoise(p*7.0)), pit*0.9);
     // kerb where the plaza meets the green belt
-    c *= 1.0 - 0.18*band(e, 17.2, 17.6);
+    c *= 1.0 - 0.18*band(e, 18.0, 18.5);
     rough = 0.7;
   }
   return c;

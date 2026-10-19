@@ -298,11 +298,13 @@ function spawnCar(kind) {
   return o;
 }
 
+const PED_SC = 1.3;   // readable at phone size — the critic could not see them before
 function spawnPed(b, mode) {
   const v = irange(0, 2);
-  const o = addObject({ type: 'person', kind: 'person', x: b.cx, z: b.cz, yaw: 0, base: CITY.CURB_H, size: T.person.size, h: T.person.h, value: 1,
-    parts: [{ pool: P['person' + v], local: M(0, 0, 0, 1, 1, 1), color: col(pick(PAL.shirts)), attrs: { tint2: col(pick(PAL.pants)).toArray(), aAnim: [rand() * 6.28, 0, 0] } }],
-    decal: { w: 0.9, d: 0.9 } });
+  const s = PED_SC * range(0.93, 1.07);
+  const o = addObject({ type: 'person', kind: 'person', x: b.cx, z: b.cz, yaw: 0, base: CITY.CURB_H, size: T.person.size * s, h: T.person.h * s, value: 1,
+    parts: [{ pool: P['person' + v], local: M(0, 0, 0, s, s, s), color: col(pick(PAL.shirts)), attrs: { tint2: col(pick(PAL.pants)).toArray(), aAnim: [rand() * 6.28, 0, 0] } }],
+    decal: { w: 1.15, d: 1.15 } });
   o.moving = true;
   if (mode === 'loop') {
     const inset = range(1.0, CITY.WALK - 0.5);

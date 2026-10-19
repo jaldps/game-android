@@ -96,7 +96,7 @@ svg{display:block}
 .ghostbtn:active{transform:scale(.95)}
 .ghostbtn.center{align-self:center}
 
-.panel{position:relative;min-width:320px;max-width:92vw;max-height:92vh;overflow:auto;padding:22px 28px 22px;border-radius:28px;background:rgba(28,12,44,.42);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+.panel{position:relative;min-width:320px;max-width:92vw;max-height:92vh;overflow:auto;padding:22px 28px 22px;border-radius:28px;background:rgba(24,10,38,.76);backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;gap:14px;animation:panelin .5s cubic-bezier(.2,1.2,.3,1)}
 @keyframes panelin{from{opacity:0;transform:translateY(16px) scale(.97)}}
 .phead{font-weight:300;font-size:22px;letter-spacing:.42em;margin-left:.42em}
@@ -106,18 +106,18 @@ svg{display:block}
 .tog b::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
 .tog.on b{background:var(--acc)}
 .tog.on b::after{transform:translateX(16px)}
-#pause{background:rgba(10,4,20,.25)}
-#species{background:rgba(10,4,20,.25)}
-.panel.wide{min-width:560px}
+#pause{background:rgba(10,4,20,.5)}
+#species{background:rgba(10,4,20,.5)}
+.panel.wide{min-width:614px}
 #speciesGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.sp{pointer-events:auto;width:120px;padding:12px 8px 10px;border-radius:18px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .15s}
+.sp{pointer-events:auto;width:134px;padding:12px 8px 10px;border-radius:18px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .15s}
 .sp canvas{width:100px;height:60px}
-.sp .nm{font-weight:700;font-size:13px;letter-spacing:.08em}
+.sp .nm{font-weight:700;font-size:13px;letter-spacing:.03em;white-space:nowrap}
 .sp .req{font-size:11px;font-weight:600;opacity:.75;letter-spacing:.06em}
 .sp.sel{box-shadow:inset 0 0 0 2px #fff;background:rgba(255,255,255,.16)}
 .sp.locked{opacity:.5}
 
-#over{background:rgba(10,4,20,.22)}
+#over{background:rgba(10,4,20,.42)}
 .results{min-width:440px;gap:8px;padding:20px 30px}
 .rkicker{font-weight:300;font-size:22px;letter-spacing:.4em;margin-left:.4em}
 .rleg{font-weight:600;font-size:12px;letter-spacing:.24em;text-transform:uppercase;opacity:.8}
@@ -145,4 +145,24 @@ svg{display:block}
   .results{min-width:0}
   #legbar{top:calc(64px + var(--st))}
 }
-@media (max-height:380px){.logo{font-size:52px}.playbtn{margin-top:18px}.results{gap:5px;padding:14px 24px}.rscore{font-size:42px}}
+/* Short viewports (every landscape phone): the single-column results card is taller than the
+   screen and buries FLY AGAIN below the fold. Re-flow it into two columns so the whole card,
+   buttons included, is on screen without scrolling. */
+@media (max-height:560px){
+  .results{
+    display:grid;min-width:0;width:min(780px,94vw);padding:16px 30px 18px;
+    grid-template-columns:auto 1fr;column-gap:34px;row-gap:3px;justify-items:center;align-items:center;
+    grid-template-areas:"kick stats" "leg stats" "star stats" "score stats" "best unlock" "btns btns";
+  }
+  .rkicker{grid-area:kick;font-size:19px}
+  .rleg{grid-area:leg}
+  .stars{grid-area:star;margin:3px 0}
+  .stars i{width:26px;height:26px}
+  .rscore{grid-area:score;font-size:46px}
+  .newbest{grid-area:best;margin-top:2px}
+  .rstats{grid-area:stats;grid-template-columns:repeat(2,1fr);gap:9px 22px;margin:0}
+  .rstats b{font-size:19px}
+  .unlock{grid-area:unlock;margin-top:2px}
+  .rbtns{grid-area:btns;margin-top:10px}
+}
+@media (max-height:380px){.logo{font-size:52px}.playbtn{margin-top:18px}.results{padding:12px 24px;row-gap:1px}.rscore{font-size:40px}.rstats b{font-size:17px}}

@@ -1,6 +1,6 @@
 // Moving life: cars follow the road graph with corner arcs and simple queueing; pedestrians walk sidewalk loops or wander parks/plazas.
 import { CITY } from './config.js';
-import { city } from './city.js';
+import { city, respawnProps } from './city.js';
 import { gridMove, gridInsert, writeObject } from './objects.js';
 import { rand, range, pick, chance } from './rng.js';
 
@@ -80,10 +80,35 @@ function loopPos(w) {
   return [x, z, dx * w.dir, dz * w.dir];
 }
 
-export function updatePeds(dt, time) {
+export function updatePeds(dt, time, holes) {
   for (const p of city.peds) {
     if (p.state !== 0) continue;
     const w = p.walk;
+    // panic: anything with a hole bearing down on it sprints the other way
+    let px = 0, pz = 0, panic = 0;
+    if (holes) for (const h of holes) {
+      if (!h.alive) continue;
+      const dx = p.x - h.x, dz = p.z - h.z; const d = Math.hypot(dx, dz);
+      const reach = h.r + 9;
+      if (d < reach) { const k = (1 - d / reach); if (k > panic) panic = k; px += dx / (d || 1) * k; pz += dz / (d || 1) * k; }
+    }
+    if (panic > 0.02) {
+      const pl = Math.hypot(px, pz) || 1;
+      const spd = 2.0 + panic * 3.2;
+      p.x += px / pl * spd * dt; p.z += pz / pl * spd * dt;
+      const ty = Math.atan2(px / pl, pz / pl); let dy = ty - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 12);
+      if (p.animSpd !== 16) { p.animSpd = 16; p.parts[0].pool.setAttr('aAnim', p.parts[0].id, p.parts[0].ph ?? (p.parts[0].ph = rand() * 6.28), 0, 16); }
+      if (w.mode === 'loop') w.s += spd * w.dir * dt;      // keep the loop phase roughly in step
+      gridMove(p); p.dirty = true; p.panicked = true;
+      continue;
+    }
+    if (p.panicked) {
+      p.panicked = false; p.animSpd = -1;
+      // a ped that bolted has left its beat — let it mill about where it ended up
+      if (w.mode === 'loop') p.walk = { mode: 'wander', b: { cx: p.x, cz: p.z }, tx: p.x, tz: p.z, idle: range(0.3, 1.4), speed: range(0.9, 1.4), wanderR: 7 };
+      else w.idle = range(0.2, 1.0);
+      continue;
+    }
     if (w.mode === 'loop') {
       w.s += w.speed * w.dir * dt;
       const [x, z, dx, dz] = loopPos(w);
@@ -111,6 +136,7 @@ export function updatePeds(dt, time) {
 
 // Recycle eaten pedestrians / cars so the streets stay alive.
 export function respawnLife(holes, dt) {
+  respawnProps(holes, 2);
   const far = (x, z) => { for (const h of holes) if (h.alive && Math.hypot(h.x - x, h.z - z) < h.r + 22) return false; return true; };
   let alive = 0; for (const p of city.peds) if (p.state === 0) alive++;
   if (alive < city.pedTarget * 0.8) {

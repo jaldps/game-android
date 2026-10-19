@@ -109,7 +109,7 @@ function drawFloor(P, camX) {
   c.save(); c.lineWidth = Math.max(1, 0.22 * s); c.lineJoin = 'round';
   const eg = c.createLinearGradient(0, 0, w, 0);
   const sxn = clamp(P.sunX, 0.05, 0.95);
-  eg.addColorStop(0, css(_d, 0.06)); eg.addColorStop(sxn, css(_d, 0.5)); eg.addColorStop(1, css(_d, 0.06));
+  eg.addColorStop(0, css(_d, 0.04)); eg.addColorStop(sxn, css(_d, 0.3)); eg.addColorStop(1, css(_d, 0.04));
   c.strokeStyle = eg; c.beginPath();
   for (let x = -step; x <= w + step; x += step) { const wx = camX + x / s; if (isWaterAt(wx)) { c.moveTo(x, (WATER_Y + 4) * s); continue; } const y = floorY(wx) * s; if (x <= -step) c.moveTo(x, y); else c.lineTo(x, y); }
   c.stroke(); c.restore();
@@ -245,7 +245,16 @@ function drawDeco(o, P, camX) {
     else if (d.k === 'palm') { const hh = 6 * s * k; c.moveTo(x - 0.2 * s, y); c.quadraticCurveTo(x + 0.5 * s, y - hh * 0.6, x + 1.2 * s * k, y - hh); c.lineTo(x + 1.5 * s * k, y - hh); c.quadraticCurveTo(x + 0.8 * s, y - hh * 0.6, x + 0.25 * s, y); c.closePath(); const tx = x + 1.35 * s * k, ty = y - hh; for (let j = 0; j < 5; j++) { const a = -2.9 + j * 0.62, L = 2.8 * s * k; c.moveTo(tx, ty); c.quadraticCurveTo(tx + Math.cos(a) * L * 0.5, ty + Math.sin(a) * L * 0.5 - 0.5 * s, tx + Math.cos(a) * L, ty + Math.sin(a) * L * 0.4 + L * 0.35); c.quadraticCurveTo(tx + Math.cos(a) * L * 0.5, ty + Math.sin(a) * L * 0.5, tx, ty + 0.25 * s); } }
     else if (d.k === 'cactus') { const hh = 3.5 * s * k, ww = 0.5 * s * k; c.moveTo(x - ww, y); c.lineTo(x - ww, y - hh); c.arc(x, y - hh, ww, Math.PI, 0); c.lineTo(x + ww, y); c.closePath(); }
     else if (d.k === 'drip') { const L = d.l * s, w = 0.28 * s; c.moveTo(x - w, y); c.lineTo(x + w, y); c.lineTo(x + w * 0.15, y + L); c.closePath(); }
-    else if (d.k === 'vine') { const L = d.l * s, sw = Math.sin(t * 1.2 + d.x) * 0.5 * s; c.moveTo(x - 0.12 * s, y - 1 * s); c.quadraticCurveTo(x + sw, y + L * 0.6, x + sw * 1.5, y + L); c.lineTo(x + sw * 1.5 + 0.18 * s, y + L); c.quadraticCurveTo(x + sw + 0.2 * s, y + L * 0.6, x + 0.12 * s, y - 1 * s); c.closePath(); }
+    else if (d.k === 'vine') { // tapering, curling root — not a straight wire
+      const L = d.l * s, sw = (Math.sin(t * 0.9 + d.x * 0.7) + Math.sin(d.x * 2.3)) * 1.4 * s, w0 = 0.3 * s;
+      c.moveTo(x - w0, y - 1.2 * s);
+      c.bezierCurveTo(x - w0 * 0.6 + sw * 0.3, y + L * 0.45, x + sw * 0.8, y + L * 0.72, x + sw * 1.25, y + L);
+      c.lineTo(x + sw * 1.25 + 0.1 * s, y + L);
+      c.bezierCurveTo(x + sw * 0.8 + 0.22 * s, y + L * 0.72, x + w0 * 0.6 + sw * 0.3 + 0.3 * s, y + L * 0.45, x + w0, y - 1.2 * s);
+      c.closePath();
+      // a couple of leaves clinging to it
+      for (let j = 1; j <= 2; j++) { const u = j / 3, lx = x + sw * 1.25 * u * u, ly = y + L * u; c.moveTo(lx + 0.8 * s, ly); c.ellipse(lx, ly, 0.8 * s, 0.34 * s, 0.5 + j, 0, 6.283); }
+    }
   }
   c.fill();
 }
@@ -350,8 +359,8 @@ function drawMotes(P, camX) {
     if (!m.alive) continue;
     const x = m.x - camX; if (x < -5 || x > V.W + 5) continue;
     const y = m.y + Math.sin(t * 2 + m.ph) * 0.6, pu = 0.8 + 0.2 * Math.sin(t * 5 + m.ph);
-    glowPush(x, y, 1.7 * pu, 0.95);
-    const r = 0.42 * s * pu; c.moveTo(x * s + r, y * s); c.arc(x * s, y * s, r, 0, 6.283);
+    glowPush(x, y, 1.42 * pu, 0.95);
+    const r = 0.56 * s * pu; c.moveTo(x * s + r, y * s); c.arc(x * s, y * s, r, 0, 6.283);
   }
   c.fill();
 }
