@@ -259,7 +259,7 @@ export function step(dt) {
 // neutral population upkeep (call ~every frame with dt)
 export function upkeep(dt, roundFrac) {
   // target shrinks slowly over the round so the endgame is about crowd fights
-  S.neutralTarget = Math.round(SIM.NEUTRAL0 * (1 - 0.45 * roundFrac));
+  S.neutralTarget = Math.round(SIM.NEUTRAL0 * (1 - 0.28 * roundFrac));
   let active = 0; for (let i = 0; i < N; i++) if (A.team[i] !== -2) active++;
   S.active = active;
   if (S.neutral < S.neutralTarget && active < N - 50) {

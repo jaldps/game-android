@@ -16,12 +16,12 @@ GRID.X0 = -GRID.SPAN / 2;
 GRID.HALF = GRID.SPAN / 2;
 
 export const SIM = {
-  MAX: 3400,          // agent capacity
-  NEUTRAL0: 1500,     // neutrals at round start
+  MAX: 5400,          // agent capacity
+  NEUTRAL0: 3000,     // neutrals at round start
   R: 0.3,             // body radius
   SEP: 0.58,          // preferred spacing
   CONTACT: 0.66,      // team vs team contact distance
-  RECRUIT: 0.78,      // follower -> neutral recruit distance
+  RECRUIT: 1.02,      // follower -> neutral recruit distance
   LEADER_SPEED: 7.4,
   FOLLOW_SPEED: 8.6,
   NEUTRAL_SPEED: 1.3,

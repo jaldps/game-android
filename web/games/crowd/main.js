@@ -54,7 +54,9 @@ function buildRound(withPlayer, cityIdx) {
   const names = shuffle(BOT_NAMES.slice());
   if (withPlayer) {
     G.player = addTeam({ name: 'You', color: pskin.color, isPlayer: true, x: chosen[0][0], z: chosen[0][1], hat: store.hat });
-    if (Q.autoplay) G.player.ai = makeBrain(1.0);
+    // autoplay drives the player for the whole round; scene/warp previews need a brain
+    // so the warped-in state (and ?scene=over stats) is plausible rather than a dead leader.
+    if (Q.autoplay || Q.scene === 'over' || Q.warp > 0) G.player.ai = makeBrain(1.0);
   } else G.player = null;
   const nb = withPlayer ? P.bots : P.bots + 1;
   for (let k = 0; k < nb; k++) {
@@ -349,12 +351,12 @@ function frameNow(snap, dt = 1 / 60) {
     // follow the biggest crowd with a slow orbit
     let big = teams[0]; for (const t of teams) if (t.alive && t.count > big.count) big = t;
     const L = big.leader; menuYaw += dt * 0.06; R.yaw = Math.sin(menuYaw) * 0.5; R.pitch = 46;
-    frameCamera(A.x[L], 0, A.z[L] + 6, 34 + crowdRadius(big.count) * 2.2, dt, snap);
+    frameCamera(A.x[L], 0, A.z[L] + 6, 22 + crowdRadius(big.count) * 2.4, dt, snap);
     return;
   }
   R.yaw = 0; R.pitch = 52;
   const P = G.player || teams[0]; const L = P.leader;
-  let want = 24 + crowdRadius(P.count) * 2.9;
+  let want = 11.5 + crowdRadius(P.count) * 3.5;
   if (G.mode === 'over' && G.stats) want *= 1.15;
   frameCamera(A.x[L], A.y[L] > 2 ? A.y[L] * 0.6 : 0, A.z[L], want, dt, snap);
 }
@@ -413,7 +415,9 @@ async function boot() {
     setScreen('hud'); H.show('hud', true); H.setKills(0);
     hintShown = false; H.show('hint', false);
     const w = Q.warp || (sc === "over" ? 70 : Q.autoplay ? 20 : 0);
-    if (w) { G.roundT = Math.max(1, ROUND_TIME - w); warp(w); }
+    if (w) { G.roundT = ROUND_TIME; warp(Math.min(w, ROUND_TIME - 5)); }
+    // hand control back to the human once the preview warp is done
+    if (!Q.autoplay && G.player) G.player.ai = null;
     if (sc === 'over') {
       if (!G.player.alive) G.player.alive = true;
       G.roundT = 0; G.mode = 'play'; endRoundPreview();
