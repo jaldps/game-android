@@ -66,7 +66,7 @@ gradle assembleRelease          # AGP 8.7.3, compileSdk/targetSdk 35, minSdk 26
 ```
 `app/build.gradle` points the asset source at `../../web`, so whatever is in `web/` ships. `tools/apk.sh` does
 the same and copies the result to `dist/ClearplayArcade.apk`. It and the other scripts hard-code
-`/home/claude/arcade` as the project root, so adjust that path if you run them elsewhere.
+`/home/user/game-android` as the project root, so adjust that path if you run them elsewhere.
 
 Before a store-quality release: prune `web/lib/addons` to only the files the games import (it's ~24 MB, while
 the games use a handful), add a real signing key, and add an adaptive launcher icon.

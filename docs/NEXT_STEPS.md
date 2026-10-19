@@ -6,7 +6,7 @@ independent critic.
 
 ## 0. Getting a workspace back
 The agents' working state was in a cloud session; this repo is now the source of truth. To continue:
-1. Clone this repo into the new workspace and put it at `/home/claude/arcade` (the tools hard-code that path), or
+1. Clone this repo into the new workspace and put it at `/home/user/game-android` (the tools hard-code that path), or
    update the path in `tools/*.sh`.
 2. `npm install` (for playwright-core, used by the screenshot tool).
 3. Collect reference screenshots of the six originals again into `refs/<id>/` (see `refs/SOURCES.md`). They're

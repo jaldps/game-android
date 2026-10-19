@@ -1,7 +1,7 @@
 # Clearplay Arcade — shared build spec (every agent reads this fully first)
 
 One Android APK = a native WebView shell (DONE, works) + a hub menu + 6 ad-free HTML5/WebGL games.
-Project root `/home/claude/arcade`. Web root (becomes the APK's assets): `web/`.
+Project root `/home/user/game-android`. Web root (becomes the APK's assets): `web/`.
 The user's bar: every game must look and feel **AAA mobile** — better than the ad-riddled original when
 compared side-by-side *blind*. A separate harsh critic agent will judge your screenshots blind against real
 screenshots of the original (`refs/<id>/`). You will keep iterating until the critic prefers yours.

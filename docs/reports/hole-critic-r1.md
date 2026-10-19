@@ -1,6 +1,6 @@
 # Sinkhole City: harsh critic, round 1 (verbatim report, 2026-10-19)
 
-Screenshot paths below refer to the original workspace (`/home/claude/arcade/shots/hole/critic/`). The key images are
+Screenshot paths below refer to the original workspace (`/home/user/game-android/shots/hole/critic/`). The key images are
 copied into `screenshots/hole-critic-r1/` in this repo.
 
 ## VERDICT: NOT YET
