@@ -343,11 +343,11 @@ vec3 groundColor(vec2 p, float up, float wy, out float rough){
   if (up < 0.5) return c;
   float dmg = texture2D(uDamage, (p + HALFP) / (2.0*HALFP)).r;
   if (dmg < 0.10) return c;
-  float n = fbm(p*0.5 + 3.3);
+  // Low-frequency centred noise: breaks the mask's soft discs into irregular dig sites that
+  // merge into each other, instead of stamping a field of identical brown polka dots.
+  float n = fbm(p*0.19 + 3.3)*0.68 + fbm(p*0.62 + 9.1)*0.32;
   float n2 = vnoise(p*2.6);
-  // Centred noise, so the mask only breaks up an edge that is already there instead of
-  // sprinkling blotches across clean streets.
-  float d = clamp((dmg - 0.10)*1.02 + (n - 0.5)*0.30, 0.0, 1.0);
+  float d = clamp((dmg - 0.10)*1.04 + (n - 0.5)*0.46, 0.0, 1.0);
   if (d <= 0.01) return c;
   // 1) where the hole merely rolled through: a film of dust that dirties whatever was there.
   //    Tinting towards brown instead would paint a mud stripe over clean paving.

@@ -452,7 +452,7 @@ export function mega(kind) {
     return b.build();
   }
   if (kind === 'stadium') {
-    const RO = 15.8, RI = 10.4, H = 15;
+    const RO = 12.9, RI = 8.5, H = 13;
     // bowl: outer wall ring of panels, inner raked seating
     for (let i = 0; i < 28; i++) {
       const a = i / 28 * Math.PI * 2, nx = Math.cos(a), nz = Math.sin(a);
@@ -461,15 +461,15 @@ export function mega(kind) {
       if (i % 4 === 0) b.box(1.4, H * 0.8, 0.3, { p: [nx * (RO + 0.85), 0, nz * (RO + 0.85)], r: [0, -a + Math.PI / 2, 0], c: '#9aa3ad' });
       // raked seating tiers
       for (let t = 0; t < 4; t++) {
-        const rr = RI + t * 1.35, hh = 2.2 + t * 3.1;
+        const rr = RI + t * 1.1, hh = 1.9 + t * 2.7;
         b.box(2.6, 1.0, 1.4, { p: [nx * rr, hh, nz * rr], r: [0, -a + Math.PI / 2, 0], c: ['#3f74c8', '#e0453f', '#3f74c8', '#f0c23a'][t], base: false });
       }
     }
     // pitch + markings
     b.cyl(RI - 0.4, RI - 0.4, 0.5, 30, { p: [0, 0, 0], c: '#4f9c3a' });
-    b.add(new THREE.TorusGeometry(2.6, 0.18, 4, 24), { p: [0, 0.54, 0], r: [Math.PI / 2, 0, 0], c: '#f0f4ee' });
-    b.box(16.4, 0.06, 0.3, { p: [0, 0.54, 0], c: '#f0f4ee' });
-    for (const z of [-7.4, 7.4]) b.box(6.4, 0.06, 0.3, { p: [0, 0.54, z], c: '#f0f4ee' });
+    b.add(new THREE.TorusGeometry(2.1, 0.16, 4, 24), { p: [0, 0.54, 0], r: [Math.PI / 2, 0, 0], c: '#f0f4ee' });
+    b.box(13.4, 0.06, 0.28, { p: [0, 0.54, 0], c: '#f0f4ee' });
+    for (const z of [-6.0, 6.0]) b.box(5.2, 0.06, 0.28, { p: [0, 0.54, z], c: '#f0f4ee' });
     // floodlight masts
     for (let k = 0; k < 4; k++) {
       const a = Math.PI / 4 + k * Math.PI / 2;

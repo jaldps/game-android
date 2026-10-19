@@ -18,9 +18,11 @@ CITY.HALF = CITY.SPAN / 2 + CITY.BORDER;               // platform half extent
 // Hole growth: discrete levels, radius per level, mass needed per level
 export const HOLE = {
   R0: 1.16,
-  LEVEL_GROWTH: 1.1125,
+  // A level-30 hole is r=15: twice a city block's frontage, big enough to drop a stadium into and
+  // still small enough that the camera frames a quarter of the city instead of the whole island.
+  LEVEL_GROWTH: 1.0923,
   MAX_LEVEL: 30,
-  GROW: 0.265,           // fraction of swallowed footprint area added to the hole's area
+  GROW: 0.14,            // fraction of swallowed footprint area added to the hole's area
   FIT: 0.94,             // object size must be < r*FIT to fall in
   SPEED_BASE: 7.4,
   SPEED_PER_R: 0.30,
@@ -121,8 +123,10 @@ applyTheme('harbor');
 
 // ---------------- Set-pieces ----------------
 // Only a near-max hole can swallow these. Each one is an objective with its own callout.
+// Footprint radii match the built geometry, so what you can swallow is what you can see.
+// They unlock in order: spire (~LV22), wheel (~LV28), arena (~LV30).
 export const MEGAS = [
-  { id: 'spire', label: 'THE SPIRE', call: 'SWALLOW THE SPIRE!', size: 18.5, value: 2600, hint: 'A 140 m needle of glass' },
-  { id: 'stadium', label: 'THE ARENA', call: 'SWALLOW THE ARENA!', size: 16.5, value: 2100, hint: 'Sunday\'s match is cancelled' },
-  { id: 'wheel', label: 'THE BIG WHEEL', call: 'SWALLOW THE BIG WHEEL!', size: 13.5, value: 1600, hint: 'Last ride of the day' },
+  { id: 'spire', label: 'THE SPIRE', call: 'SWALLOW THE SPIRE!', size: 9.0, value: 2600, hint: 'A 140 m needle of glass' },
+  { id: 'wheel', label: 'THE BIG WHEEL', call: 'SWALLOW THE BIG WHEEL!', size: 12.6, value: 1900, hint: 'Last ride of the day' },
+  { id: 'stadium', label: 'THE ARENA', call: 'SWALLOW THE ARENA!', size: 13.4, value: 2400, hint: 'Sunday\'s match is cancelled' },
 ];

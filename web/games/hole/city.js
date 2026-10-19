@@ -383,7 +383,7 @@ function outerDistrict() {
 
 // ---------- set-pieces ----------
 function megaObject(def, x, z, yaw) {
-  const h = def.id === 'spire' ? 142 : def.id === 'stadium' ? 23 : 28;
+  const h = def.id === 'spire' ? 142 : def.id === 'stadium' ? 20 : 28;
   const o = addObject({
     type: def.id, kind: 'mega', x, z, yaw, base: CITY.CURB_H, size: def.size, h, value: def.value,
     parts: [{ pool: P[def.id], local: M(0, 0, 0, 1, 1, 1) }],
