@@ -26,6 +26,15 @@ export function initPeople(scene, lo) {
   bg.index = pl.index; for (const k in pl.attributes) bg.setAttribute(k, pl.attributes[k]);
   bg.setAttribute('iPos', iPos); bg.setAttribute('iAnim', iAnim); bg.instanceCount = 0;
   blob = new THREE.Mesh(bg, blobMaterial()); blob.frustumCulled = false; blob.renderOrder = 1; scene.add(blob);
+  window.__peopleDbg = () => {
+    const bg2 = body.geometry; const s = [];
+    for (let k = 0; k < 8; k++) { const o = k * 4; s.push([iPos.array[o].toFixed(1), iPos.array[o + 1].toFixed(2), iAnim.array[o + 2].toFixed(3), iCol.array[o].toFixed(2), iCol.array[o + 1].toFixed(2), iCol.array[o + 2].toFixed(2)].join('/')); }
+    return {
+      instanceCount: bg2.instanceCount, maxInst: bg2._maxInstanceCount, blobInst: blob.geometry.instanceCount, blobMax: blob.geometry._maxInstanceCount,
+      iPosCount: iPos.count, attrs: Object.keys(bg2.attributes), posCount: bg2.attributes.position.count, idx: bg2.index ? bg2.index.count : -1,
+      visible: body.visible, matOK: !!body.material.program, sample: s,
+    };
+  };
 }
 export function disposeHats(scene) { for (const h of hats) { scene.remove(h); h.geometry.dispose(); } hats.length = 0; }
 export function setupHats(scene) {
