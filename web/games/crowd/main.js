@@ -27,6 +27,7 @@ const vibrate = ms => { if (userGesture && !Q.autoplay) hostVibrate(ms); };
 for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => { userGesture = true; AU.unlock(); }, { capture: true });
 setOrientation('portrait');
 
+window.__R = R; window.__sim = { A, teams, S };
 const G = { mode: 'boot', roundT: ROUND_TIME, paused: false, player: null, countdown: 0, round: 0, cityIdx: 0, menuCity: 0, lastTick: 99, overT: 0, deadT: 0, streak: 0, streakT: 0, popAcc: 0, popT: 0, milestone: 0, autoRestart: 0, stats: null, sorted: [], lastRank: 1 };
 window.__game = G;
 const MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000];
