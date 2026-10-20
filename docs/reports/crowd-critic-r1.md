@@ -65,3 +65,26 @@
 - `/home/user/game-android/shots/crowd/critic/blind/p3.png`
 - `/home/user/game-android/shots/crowd/critic/blind/p4.png`
 - `/tmp/claude-0/-home-user/40bd5af7-231b-5bb2-88e4-62bea48e974c/scratchpad/crop_turbo.png`
+
+---
+
+## Applied status (updated after the targeted bug-fix pass)
+
+**Applied:** 1 (invisible crowd), 3 (team colour), 4 (clip-plane seam), 5 (flat untextured
+roofs/plazas), 11 (depopulated title screen — resolved once fix 1 landed), 15.
+
+Root cause of fix 1 was not an instance-count or buffer-growth problem as first suspected.
+`sim.js step()` computed `sp = Math.hypot(mx,mz) / dt`, and the first rendered frame runs with
+`dt === 0`, writing NaN into `A.phase` / `A.run` for every live agent. Those feed `iAnim.x/.y`,
+so `sin(ph)` made `gl_Position` NaN and the GPU silently discarded every body instance. Blob
+shadow discs survived because that shader only reads `iAnim.z/.w` — hence a grey smudge with no
+people. Fixed with an invDt guard plus phase self-heal in sim.js, a floored realDt in main.js,
+and a non-finite sanitiser on the per-instance upload in people.js.
+
+**Still outstanding:** 2 (camera too wide — the single biggest remaining blind-A/B loss; an
+111-strong mob fills roughly 8% of frame where the reference fills 60-70%), 6 (bleached palette:
+road, sidewalk and plaza sit within a few percent luminance so the city reads as fog), 7, 8, 9,
+10, 12, 13, 14.
+
+Blind A/B moved from 2/4 (50%) at round 1 to 4/6 (67%) after this pass. Both remaining losses
+were lost on crowd presence and framing, not on rendering quality.

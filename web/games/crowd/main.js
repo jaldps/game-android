@@ -27,7 +27,9 @@ const vibrate = ms => { if (userGesture && !Q.autoplay) hostVibrate(ms); };
 for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => { userGesture = true; AU.unlock(); }, { capture: true });
 setOrientation('portrait');
 
-window.__R = R; window.__sim = { A, teams, S };
+// Triage hooks (read-only). window.__peopleDbg() in people.js reports instance counts and a sample of the
+// per-instance buffers — that is how the "invisible crowd" NaN was isolated. Keep them.
+window.__R = R; window.__sim = { A, teams, S }; window.__THREE = THREE;
 const G = { mode: 'boot', roundT: ROUND_TIME, paused: false, player: null, countdown: 0, round: 0, cityIdx: 0, menuCity: 0, lastTick: 99, overT: 0, deadT: 0, streak: 0, streakT: 0, popAcc: 0, popT: 0, milestone: 0, autoRestart: 0, stats: null, sorted: [], lastRank: 1 };
 window.__game = G;
 const MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000];
@@ -50,8 +52,18 @@ function buildRound(withPlayer, cityIdx) {
   for (const s of spots) { if (chosen.every(c => Math.hypot(c[0] - s[0], c[1] - s[1]) > 60)) chosen.push(s); if (chosen.length >= P.bots + 1) break; }
   for (const s of spots) { if (chosen.length >= P.bots + 1) break; if (!chosen.includes(s)) chosen.push(s); }
   const pskin = playerSkin();
-  const cols = TEAM_COLORS.filter(c => c.toLowerCase() !== pskin.color.toLowerCase());
-  shuffle(cols);
+  // rival colours: anything within ~30 deg of the player's hue reads as "my mob" at a glance,
+  // so push those to the back of the queue instead of handing them out first.
+  const _h = new THREE.Color(), _p = new THREE.Color(pskin.color), _hsl = { h: 0, s: 0, l: 0 };
+  _p.getHSL(_hsl); const pH = _hsl.h;
+  const far = [], near = [];
+  for (const c of TEAM_COLORS) {
+    if (c.toLowerCase() === pskin.color.toLowerCase()) { near.push(c); continue; }
+    _h.set(c).getHSL(_hsl); let d = Math.abs(_hsl.h - pH); if (d > 0.5) d = 1 - d;
+    (d > 0.085 ? far : near).push(c);
+  }
+  shuffle(far); shuffle(near);
+  const cols = [...far, ...near];
   const names = shuffle(BOT_NAMES.slice());
   if (withPlayer) {
     G.player = addTeam({ name: 'You', color: pskin.color, isPlayer: true, x: chosen[0][0], z: chosen[0][1], hat: store.hat });
@@ -341,7 +353,7 @@ function applyQuality() {
   const q = store.quality; R.quality = q;
   R.pr = Math.min(window.devicePixelRatio || 1, q === 'low' ? 1.25 : 2); R.renderer.setPixelRatio(R.pr); resize();
   setupGrade(q === 'high');
-  R.renderer.shadowMap.type = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap; R.renderer.shadowMap.needsUpdate = true;
+  R.renderer.shadowMap.type = THREE.PCFShadowMap; R.renderer.shadowMap.needsUpdate = true;
 }
 
 // ---------------- camera ----------------
@@ -368,7 +380,8 @@ let last = performance.now(), fpsAcc = 0, fpsN = 0, slowT = 0;
 window.__fps = 0;
 function loop(now) {
   requestAnimationFrame(loop);
-  let realDt = Math.min(0.1, (now - last) / 1000); last = now;
+  let realDt = (now - last) / 1000; last = now;
+  realDt = realDt > 1e-4 ? Math.min(0.1, realDt) : 1e-4;   // first frame has now === last; never feed 0 to the sim
   fpsAcc += realDt; fpsN++; if (fpsAcc > 0.5) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   if (bgPaused) return;
   let dt = Q.fixed ? 1 / 60 : Math.min(realDt, 1 / 30);

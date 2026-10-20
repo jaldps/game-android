@@ -208,6 +208,24 @@ function plazaBlock(b) {
     if (chance(0.6)) prop('umbrella', cx + qx * 7.5, cz - qz * 3.2 + qz * 0.0, rand() * 6, 1, { color: pick(['#ff6b6b', '#ffd43b', '#4dabf7', '#ff8cc6', '#63e6be']) });
   }
   if (chance(0.7)) { const x = cx + (chance(0.5) ? 1 : -1) * 4, z = cz + (chance(0.5) ? 1 : -1) * 9.4; prop('kiosk', x, z, 0, 1, { color: pick(['#ff6b6b', '#4dabf7', '#ffa94d', '#9775fa']) }); block(x - 1.3, z - 1.0, x + 1.3, z + 1.0); }
+  // market row: awninged stalls down one edge, plus seating, bins and bollards on the rim,
+  // so the plaza reads as a used public square instead of a decorated flat plane.
+  {
+    const ms = chance(0.5) ? 1 : -1, mz = cz + ms * 9.2;
+    for (let k = -1; k <= 1; k++) {
+      const x = cx + k * 3.4;
+      prop('umbrella', x, mz, 0, range(0.95, 1.15), { color: pick(['#ff6b6b', '#ffd43b', '#4dabf7', '#ff8cc6', '#63e6be', '#ffa94d']) });
+      block(x - 1.3, mz - 1.3, x + 1.3, mz + 1.3);
+      if (chance(0.55)) prop('bin', x + 1.9, mz - ms * 2.0, rand() * 6);
+    }
+    for (const [qx, qz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      prop('bench', cx + qx * 4.6, cz + qz * 4.6, qx * qz > 0 ? Math.PI / 4 : -Math.PI / 4);
+      if (chance(0.7)) prop('flowers', cx + qx * 10.2, cz + qz * 2.4, 0, range(0.7, 0.9));
+    }
+    // bollard line along the street edge of the lot
+    const bz = cz - ms * 10.6;
+    for (let k = -3; k <= 3; k++) prop('hydrant', cx + k * 2.6, bz, 0, 0.75);
+  }
 }
 
 function platformBlock(b) {
@@ -246,6 +264,36 @@ function platformBlock(b) {
     if (pointInRect(x, z, ramp, 2)) continue;
     if (Math.abs(x - cx) < 4 && Math.abs(z - cz) < 4) continue;
     prop('roofplanter', x, z, 0, 1, { y: PH }); block(x - 0.7, z - 0.7, x + 0.7, z + 0.7);
+  }
+  // service clutter hugging the parapet: AC banks, water tank, antennas, bins, benches.
+  // A bare roof slab is the "empty grey plane" failure; this fills the rim and leaves the middle playable.
+  {
+    const rim = [];
+    for (let k = 0; k < 12; k++) {
+      const side = k % 4, t = range(0.12, 0.88), inset = range(2.2, 3.4);
+      const x = side === 0 ? lx0 + inset : side === 1 ? lx1 - inset : lx0 + (lx1 - lx0) * t;
+      const z = side === 2 ? lz0 + inset : side === 3 ? lz1 - inset : lz0 + (lz1 - lz0) * t;
+      if (pointInRect(x, z, ramp, 2.4)) continue;
+      rim.push([x, z, side]);
+    }
+    let tanks = 0, ants = 0;
+    for (const [x, z, side] of rim) {
+      const r = rand(), rot = side < 2 ? Math.PI / 2 : 0;
+      if (r < 0.42) {                                   // AC bank: two units side by side
+        const dx = side < 2 ? 0 : 1.5, dz = side < 2 ? 1.5 : 0;
+        prop('acunit', x, z, rot, range(0.85, 1.1), { y: PH });
+        prop('acunit', x + dx, z + dz, rot, range(0.85, 1.1), { y: PH });
+        block(Math.min(x, x + dx) - 0.8, Math.min(z, z + dz) - 0.8, Math.max(x, x + dx) + 0.8, Math.max(z, z + dz) + 0.8);
+      } else if (r < 0.60 && tanks < 2) {
+        tanks++; prop('tank', x, z, 0, range(0.9, 1.15), { y: PH }); block(x - 1.0, z - 1.0, x + 1.0, z + 1.0);
+      } else if (r < 0.74 && ants < 2) {
+        ants++; prop('antenna', x, z, 0, range(1.0, 1.7), { y: PH });
+      } else if (r < 0.88) {
+        prop('bin', x, z, rand() * 6, 1, { y: PH });
+      } else {
+        prop('bench', x, z, rot, 1, { y: PH });
+      }
+    }
   }
 }
 function pointInRect(x, z, r, m = 0) { return x > r.x0 - m && x < r.x1 + m && z > r.z0 - m && z < r.z1 + m; }

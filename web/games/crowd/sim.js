@@ -110,7 +110,9 @@ function convert(i, T, cause) {
   const old = A.team[i];
   if (old === T) return;
   if (old >= 0) { teams[old].count--; } else if (old === -1) S.neutral--;
-  A.team[i] = T; A.pend[i] = -1; A.ct[i] = 0; A.ctT[i] = -1;
+  // fade only decays on the neutral branch of step(); a neutral recruited mid-fade-in would otherwise
+  // keep fade > 0 forever and stay permanently shrunk (another route to an invisible follower).
+  A.team[i] = T; A.pend[i] = -1; A.ct[i] = 0; A.ctT[i] = -1; A.fade[i] = 0;
   const t = teams[T]; t.count++; if (t.count > t.maxCount) t.maxCount = t.count;
   if (old === -1) t.recruits++; else t.absorbed++;
   A.flash[i] = 1; A.hop[i] = 1;
@@ -130,6 +132,8 @@ function eliminate(T, by) {
 // ---------- step ----------
 const _f = [0, 0];
 export function step(dt) {
+  if (!(dt > 0)) dt = 0;                 // a zero/!finite frame must never poison the sim
+  const invDt = dt > 1e-6 ? 1 / dt : 0;  // never divide by dt directly (0/0 -> NaN -> NaN pose -> invisible crowd)
   S.time += dt;
   buildHash();
   const SEP = SIM.SEP, SEP2 = SEP * SEP, CON2 = SIM.CONTACT ** 2, REC2 = SIM.RECRUIT ** 2;
@@ -245,8 +249,9 @@ export function step(dt) {
     const hg = hAt(A.x[i], A.z[i]); const hy = hg >= BLOCKED ? A.y[i] : hg;
     if (hy > A.y[i]) A.y[i] = hy; else A.y[i] = Math.max(hy, A.y[i] - dt * 9);
     // anim
-    const sp = Math.hypot(mx, mz) / dt;
+    const sp = Math.hypot(mx, mz) * invDt;
     A.phase[i] += sp * dt * 3.4;
+    if (A.phase[i] > 6283.2 || !(A.phase[i] > -6283.2)) A.phase[i] = A.phase[i] % 6.283185 || 0;  // keep float32 sin() precise, self-heal
     A.run[i] += (Math.min(1, sp / 6.5) - A.run[i]) * Math.min(1, dt * 8);
     if (sp > 0.3) { const ty = Math.atan2(mx, mz); let dy = ty - A.yaw[i]; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); A.yaw[i] += dy * Math.min(1, dt * 10); }
     if (A.hop[i] > 0) A.hop[i] = Math.max(0, A.hop[i] - dt * 3.2);

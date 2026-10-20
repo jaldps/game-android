@@ -60,7 +60,12 @@ export function updatePeople(vb, t) {
     const hop = A.hop[i]; const hopv = hop > 0 ? Math.sin((1 - hop) * Math.PI) : 0;
     let sc = A.leader[i] ? LEADER_SCALE : 1;
     if (A.fade[i] > 0) sc *= 1 - A.fade[i];
-    An[o] = A.phase[i]; An[o + 1] = A.run[i]; An[o + 2] = sc; An[o + 3] = hopv * 0.5;
+    // sanitise: one non-finite value here becomes a NaN gl_Position and silently drops the instance
+    const ph = A.phase[i], rn = A.run[i];
+    An[o] = ph > -1e6 && ph < 1e6 ? ph : 0;
+    An[o + 1] = rn > 0 && rn < 1e6 ? rn : 0;
+    An[o + 2] = sc > 0 && sc < 1e3 ? sc : 1;
+    An[o + 3] = hopv > 0 && hopv < 1e3 ? hopv * 0.5 : 0;
     n++;
   }
   body.geometry.instanceCount = n; blob.geometry.instanceCount = n;

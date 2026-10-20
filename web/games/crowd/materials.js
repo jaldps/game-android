@@ -105,12 +105,30 @@ vec3 road(vec2 p, vec2 l, bool rx, bool rz){
 }
 // rooftop: light tiles + yellow/black safety border; vTile = (u, v, W, D)
 vec3 rooftop(vec2 p, vec4 rt){
-  vec3 c = pavers(p, vec2(1.6), uRoof*0.96, uRoof*1.04, 0.06, 0.0);
+  // bitumen-felt rolls (1.25m) with overlap seams, gravel grain and weathering patches:
+  // a roof must never read as a blank light-grey plane next to a white sidewalk.
+  float roll = fract(p.y / 1.25);
+  vec3 c = uRoof * 0.70;
+  c *= 0.88 + 0.15*smoothstep(0.0, 0.07, min(roll, 1.0 - roll));       // seam shadow between rolls
+  c *= 0.90 + 0.18*fbm(p*0.55);                                         // weathering / patch repairs
+  c += (hash12(floor(p*12.0)) - 0.5)*0.05;                              // gravel grain
   float e = min(min(rt.x, rt.y), min(rt.z - rt.x, rt.w - rt.y));
+  // pale concrete service walkway ringing the roof, inset from the parapet
+  vec3 walkC = uRoof*1.14*(0.96 + 0.06*vnoise(p*3.0));
+  walkC *= 0.93 + 0.08*smoothstep(0.0, 0.05, abs(fract((p.x + p.y)/1.4) - 0.5));
+  c = mix(c, walkC, band(e, 1.7, 3.1)*0.85);
+  // duct runs across the field
+  float duct = band(abs(fract(rt.y/9.0) - 0.5)*9.0, 0.0, 0.42) * band(rt.x, 3.4, rt.z - 3.4);
+  c = mix(c, vec3(0.70,0.72,0.76)*(0.9 + 0.12*step(0.5, fract(rt.x*1.2))), duct*0.9);
+  // roof drains
+  vec2 dq = (fract(rt.xy/7.5) - 0.5)*7.5; float dr = length(dq);
+  c = mix(c, vec3(0.30,0.31,0.35), (1.0 - smoothstep(0.24, 0.32, dr))*0.8);
+  c *= 1.0 - 0.10*(1.0 - smoothstep(0.32, 0.72, dr));
+  // yellow/black hazard border + deep parapet AO
   float hz = step(0.5, fract((p.x + p.y) * 0.9));
   vec3 haz = mix(vec3(0.16,0.16,0.18), vec3(1.0,0.78,0.15), hz);
   c = mix(c, haz, band(e, 0.0, 0.55));
-  c *= 1.0 - 0.18*(1.0 - smoothstep(0.55, 1.6, e));
+  c *= 1.0 - 0.34*(1.0 - smoothstep(0.5, 2.4, e));
   // painted circle
   vec2 q = vec2(rt.x - rt.z*0.5, rt.y - rt.w*0.5); float r = length(q);
   c = mix(c, vec3(0.97), band(r, 4.0, 4.4)*0.9);
@@ -178,9 +196,18 @@ vec3 groundColor(vec2 p, float up, float wy, float gk, vec4 rt){
     float seg = floor((ang + 3.14159) / 6.28318 * nseg);
     vec3 c = mix(uPlazaA, uPlazaB, step(0.5, mod(ring, 2.0)) * 0.75);
     c *= 0.94 + 0.07*hash12(vec2(ring, seg));
-    float fr = fract(rr/1.5); c *= 0.9 + 0.1*smoothstep(0.0, 0.04, min(fr, 1.-fr));
-    float fs = fract((ang + 3.14159) / 6.28318 * nseg); c *= 0.92 + 0.08*smoothstep(0.0, 0.03, min(fs, 1.-fs));
+    float fr = fract(rr/1.5); c *= 0.86 + 0.14*smoothstep(0.0, 0.05, min(fr, 1.-fr));
+    float fs = fract((ang + 3.14159) / 6.28318 * nseg); c *= 0.88 + 0.12*smoothstep(0.0, 0.04, min(fs, 1.-fs));
+    // fine square paver grid under the rings so the stone reads as laid, not painted
+    vec2 pv = fract(p / 0.9);
+    c *= 0.90 + 0.10*smoothstep(0.0, 0.055, min(min(pv.x, 1.-pv.x), min(pv.y, 1.-pv.y)));
+    c *= 0.97 + 0.05*vnoise(p*2.3);
     if (max(abs(cq.x), abs(cq.y)) > 9.6) c = pavers(p, vec2(1.0), uPlazaA*0.97, uPlazaA*1.03, 0.05, 0.0);
+    // dark granite inlay band where the rings meet the outer paving
+    c *= 1.0 - 0.3*band(max(abs(cq.x), abs(cq.y)), 9.2, 9.6);
+    // drain grate near the centre-edge
+    vec2 gq = cq - vec2(0.0, 6.6);
+    c = mix(c, vec3(0.34,0.35,0.38)*(0.8 + 0.3*step(0.5, fract(gq.x*3.2))), box2(gq, vec2(-0.45,-0.3), vec2(0.45,0.3))*0.9);
     return c;
   } else if (type < 3.5) {
     return pavers(p, vec2(1.0), uWalk2, uWalk2*1.03, 0.05, 0.0);

@@ -14,7 +14,7 @@ export function initRender(canvas, quality) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;   // PCFSoft was removed in r186; asking for it only logs a warning
   R.renderer = renderer;
   const scene = new THREE.Scene(); R.scene = scene;
   scene.background = new THREE.Color('#d9ecf8');
@@ -81,7 +81,9 @@ export function frameCamera(x, y, z, want, dt, snap = false) {
   const cy = Math.cos(R.yaw), syw = Math.sin(R.yaw);
   cam.position.set(R.camTarget.x + sx + Math.cos(pitch) * d * syw, R.camTarget.y + Math.sin(pitch) * d + sy, R.camTarget.z + Math.cos(pitch) * d * cy);
   cam.lookAt(R.camTarget.x + sx, R.camTarget.y, R.camTarget.z);
-  cam.near = Math.max(0.5, d * 0.08); cam.far = d * 5 + 250; cam.updateProjectionMatrix();
+  // near MUST stay constant: a distance-scaled near plane slices foreground buildings open
+  // with a hard horizontal seam across the frame. 0.6 .. ~900 is well within 24-bit depth.
+  cam.near = 0.6; cam.far = d * 5 + 300; cam.updateProjectionMatrix();
   R.scene.fog.near = d * 1.6; R.scene.fog.far = d * 4.5 + 60;
   // shadow frustum follows the view
   const sun = R.sun; const ext = d * 0.72 + 12;

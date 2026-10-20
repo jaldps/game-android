@@ -156,11 +156,12 @@ export function buildCity(scene, P) {
   const extra = [];
   for (const bl of W.buildings) {
     const w = bl.tx1 - bl.tx0, d = bl.tz1 - bl.tz0; const cx = (bl.tx0 + bl.tx1) / 2, cz = (bl.tz0 + bl.tz1) / 2;
-    const n = Math.min(4, Math.floor(w * d / 50));
-    for (let k = 0; k < n; k++) extra.push({ type: 'acunit', x: cx + range(-w * 0.3, w * 0.3), z: cz + range(-d * 0.3, d * 0.3), rot: chance(0.5) ? 0 : Math.PI / 2, s: range(0.8, 1.2), y: bl.top });
-    if (bl.style !== 1 && chance(0.35) && w > 5) extra.push({ type: 'tank', x: cx + range(-w * 0.2, w * 0.2), z: cz + range(-d * 0.2, d * 0.2), rot: 0, s: 1, y: bl.top });
-    if (bl.style === 1 && chance(0.6)) extra.push({ type: 'antenna', x: cx + w * 0.25, z: cz - d * 0.2, rot: 0, s: range(1, 1.8), y: bl.top });
-    if (bl.style !== 1 && chance(0.25) && w > 6) extra.push({ type: 'roofhut', x: cx - w * 0.2, z: cz + d * 0.2, rot: 0, s: 0.8, y: bl.top });
+    const n = Math.min(7, 2 + Math.floor(w * d / 28));
+    for (let k = 0; k < n; k++) extra.push({ type: 'acunit', x: cx + range(-w * 0.34, w * 0.34), z: cz + range(-d * 0.34, d * 0.34), rot: chance(0.5) ? 0 : Math.PI / 2, s: range(0.8, 1.2), y: bl.top });
+    if (bl.style !== 1 && chance(0.6) && w > 5) extra.push({ type: 'tank', x: cx + range(-w * 0.25, w * 0.25), z: cz + range(-d * 0.25, d * 0.25), rot: 0, s: 1, y: bl.top });
+    if (chance(bl.style === 1 ? 0.75 : 0.3)) extra.push({ type: 'antenna', x: cx + w * 0.28, z: cz - d * 0.22, rot: 0, s: range(1, 1.8), y: bl.top });
+    if (chance(0.5) && w > 6) extra.push({ type: 'roofhut', x: cx - w * 0.22, z: cz + d * 0.2, rot: chance(0.5) ? 0 : Math.PI / 2, s: 0.8, y: bl.top });
+    if (chance(0.45) && w > 7) extra.push({ type: 'roofplanter', x: cx + w * 0.3, z: cz + d * 0.3, rot: 0, s: 1, y: bl.top });
   }
   // ---- instanced props
   const all = W.props.concat(extra);
